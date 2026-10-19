@@ -75,6 +75,16 @@ export async function requireRol(rol: RolUsuario): Promise<UsuarioActual> {
 }
 
 /**
+ * Para server actions: devuelve el usuario instructor activo o `null`.
+ * Quien llama decide qué responder (en una acción no corresponde redirigir).
+ */
+export async function requiereInstructor(): Promise<UsuarioActual | null> {
+  const usuario = await leerUsuario()
+  if (!usuario || usuario.rol !== 'instructor') return null
+  return usuario
+}
+
+/**
  * Para server actions: devuelve el usuario admin activo o `null`.
  * Quien llama decide qué responder (en una acción no corresponde redirigir).
  */

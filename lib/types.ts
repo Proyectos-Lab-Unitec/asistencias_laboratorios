@@ -91,3 +91,22 @@ export type SeccionResumen = {
   laboratorio: string
   periodo: string
 }
+
+/** Opciones de los <select> del formulario de sección */
+export type LaboratorioOpcion = { id: number; nombre: string }
+export type PeriodoOpcion = { id: number; etiqueta: string }
+
+/** Fila de la tabla "Mis secciones" del instructor */
+export type SeccionFila = {
+  id: number
+  laboratorio_id: number
+  periodo_id: number
+  laboratorio: string
+  periodo: string
+  grupo: string
+  horario: string | null
+  docente: string | null
+  registro_abierto: boolean
+  token_registro: string
+  alumnos: number
+}
