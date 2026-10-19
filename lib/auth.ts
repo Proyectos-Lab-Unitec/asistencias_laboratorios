@@ -12,24 +12,21 @@ export type UsuarioActual = {
 }
 
 /**
- * Obtiene el usuario autenticado con su perfil. Si no hay sesión, redirige a /login.
+ * Lee el usuario autenticado con su perfil.
+ *
+ * Devuelve `null` en lugar de redirigir, para que pueda usarse tanto en
+ * layouts (vía requireUsuario) como en server actions (vía requiereAdmin),
+ * donde redigirir no tiene sentido. Tampoco llama a connection(): esa
+ * exclusión del prerender solo aplica a render, no a acciones.
  */
-export async function requireUsuario(): Promise<UsuarioActual> {
-  // Corta el prerender: la sesión depende del request (cookie) y del momento
-  // exacto (auth-js valida el vencimiento con Date.now()). Sin esto, con
-  // cacheComponents activado, Next.js truena con "encountered the unstable
-  // value `Date.now()` while prerendering".
-  await connection()
-
+async function leerUsuario(): Promise<UsuarioActual | null> {
   const supabase = await createClient()
 
   const {
     data: { user },
   } = await supabase.auth.getUser()
 
-  if (!user) {
-    redirect('/login')
-  }
+  if (!user) return null
 
   const { data: perfil } = await supabase
     .from('perfiles')
@@ -39,7 +36,7 @@ export async function requireUsuario(): Promise<UsuarioActual> {
 
   if (!perfil || !perfil.activo) {
     await supabase.auth.signOut()
-    redirect('/login')
+    return null
   }
 
   return {
@@ -52,6 +49,21 @@ export async function requireUsuario(): Promise<UsuarioActual> {
 }
 
 /**
+ * Obtiene el usuario autenticado con su perfil. Si no hay sesión, redirige a /login.
+ */
+export async function requireUsuario(): Promise<UsuarioActual> {
+  // Corta el prerender: la sesión depende del request (cookie) y del momento
+  // exacto (auth-js valida el vencimiento con Date.now()). Sin esto, con
+  // cacheComponents activado, Next.js truena con "encountered the unstable
+  // value `Date.now()` while prerendering".
+  await connection()
+
+  const usuario = await leerUsuario()
+  if (!usuario) redirect('/login')
+  return usuario
+}
+
+/**
  * Igual que requireUsuario, pero además exige un rol específico.
  */
 export async function requireRol(rol: RolUsuario): Promise<UsuarioActual> {
@@ -59,5 +71,15 @@ export async function requireRol(rol: RolUsuario): Promise<UsuarioActual> {
   if (usuario.rol !== rol) {
     redirect(usuario.rol === 'admin' ? '/admin' : '/instructor')
   }
+  return usuario
+}
+
+/**
+ * Para server actions: devuelve el usuario admin activo o `null`.
+ * Quien llama decide qué responder (en una acción no corresponde redirigir).
+ */
+export async function requiereAdmin(): Promise<UsuarioActual | null> {
+  const usuario = await leerUsuario()
+  if (!usuario || usuario.rol !== 'admin') return null
   return usuario
 }

@@ -2,8 +2,21 @@ export type RolUsuario = 'admin' | 'instructor'
 export type OrigenMatricula = 'qr' | 'manual'
 export type EstadoSesion = 'abierta' | 'cerrada'
 
+/**
+ * Estado que devuelven las server actions y que consume useActionState.
+ * Vive acá (y no en un archivo 'use server') porque esos archivos solo
+ * pueden exportar funciones asíncronas.
+ */
+export type EstadoAccion = {
+  ok: boolean
+  error: string | null
+}
+
+export const ESTADO_INICIAL: EstadoAccion = { ok: false, error: null }
+
 export type Perfil = {
   id: string
+  email: string | null
   rol: RolUsuario
   nombre: string
   activo: boolean
