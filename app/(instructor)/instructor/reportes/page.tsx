@@ -1,3 +1,7 @@
+// El layout redirige si el rol no corresponde (NEXT_REDIRECT), lo que rompe
+// la validación de instant navigation. Se opta out de esa validación.
+export const instant = false
+
 export default async function InstructorReportesPage() {
   return (
     <div>

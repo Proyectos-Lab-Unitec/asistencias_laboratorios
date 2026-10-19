@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { connection } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import type { RolUsuario } from '@/lib/types'
 
@@ -14,6 +15,12 @@ export type UsuarioActual = {
  * Obtiene el usuario autenticado con su perfil. Si no hay sesión, redirige a /login.
  */
 export async function requireUsuario(): Promise<UsuarioActual> {
+  // Corta el prerender: la sesión depende del request (cookie) y del momento
+  // exacto (auth-js valida el vencimiento con Date.now()). Sin esto, con
+  // cacheComponents activado, Next.js truena con "encountered the unstable
+  // value `Date.now()` while prerendering".
+  await connection()
+
   const supabase = await createClient()
 
   const {
