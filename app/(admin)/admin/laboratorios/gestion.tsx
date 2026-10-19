@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState, useActionState } from 'react'
-import { FiEdit2, FiPlus, FiTrash2 } from 'react-icons/fi'
+import { useEffect, useMemo, useState, useActionState } from 'react'
+import { FiBox, FiEdit2, FiPlus, FiSearch, FiTrash2 } from 'react-icons/fi'
 import {
   actualizarLaboratorio,
   alternarLaboratorio,
@@ -10,6 +10,16 @@ import {
 } from './actions'
 import { BotonesModal, Campo, ModalBase } from '@/components/ui/modal'
 import { InterruptorEstado } from '@/components/ui/interruptor-estado'
+import {
+  BarraBusqueda,
+  CLASE_ACCION,
+  CLASE_CELDA,
+  CLASE_FILA,
+  normalizar,
+  Paginacion,
+  POR_PAGINA,
+  TablaDato,
+} from '@/components/ui/tabla-dato'
 import { ESTADO_INICIAL, type EstadoAccion, type Laboratorio } from '@/lib/types'
 
 type AccionForm = (
@@ -156,10 +166,35 @@ export default function GestionLaboratorios({
   const [modalNuevo, setModalNuevo] = useState(false)
   const [editando, setEditando] = useState<Laboratorio | null>(null)
   const [eliminando, setEliminando] = useState<Laboratorio | null>(null)
+  const [busqueda, setBusqueda] = useState('')
+  const [pagina, setPagina] = useState(1)
 
   const cerrarNuevo = () => setModalNuevo(false)
   const cerrarEdicion = () => setEditando(null)
   const cerrarEliminacion = () => setEliminando(null)
+
+  // Filtrado en el cliente: los datos ya vienen cargados, no hace falta
+  // volver al servidor al escribir. Sin acentos, así "ubicacion" encuentra
+  // "Ubicación".
+  const filtrados = useMemo(() => {
+    const texto = normalizar(busqueda)
+    if (!texto) return laboratorios
+    return laboratorios.filter((lab) =>
+      normalizar(`${lab.nombre} ${lab.ubicacion ?? ''}`).includes(texto)
+    )
+  }, [laboratorios, busqueda])
+
+  const totalPaginas = Math.max(1, Math.ceil(filtrados.length / POR_PAGINA))
+  const paginaSegura = Math.min(pagina, totalPaginas)
+  const desde = (paginaSegura - 1) * POR_PAGINA
+  const visibles = filtrados.slice(desde, desde + POR_PAGINA)
+
+  const buscar = (valor: string) => {
+    setBusqueda(valor)
+    setPagina(1) // una búsqueda nueva siempre vuelve a la primera página
+  }
+
+  const limpiarBusqueda = () => buscar('')
 
   const activos = laboratorios.filter((lab) => lab.activo).length
   const totalSecciones = Object.values(seccionesPorLaboratorio).reduce(
@@ -184,82 +219,100 @@ export default function GestionLaboratorios({
         </button>
       </div>
 
-      <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-180 text-left">
-            <thead className="bg-gray-50">
-              <tr className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                <th className="px-4 py-3">Nombre</th>
-                <th className="px-4 py-3">Ubicación</th>
-                <th className="px-4 py-3">Capacidad</th>
-                <th className="px-4 py-3">Secciones</th>
-                <th className="px-4 py-3">Estado</th>
-                <th className="px-4 py-3 text-right">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {laboratorios.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={6}
-                    className="px-4 py-10 text-center text-sm text-gray-500"
-                  >
-                    Aún no hay laboratorios. Crea el primero con el botón de
-                    arriba.
-                  </td>
-                </tr>
-              )}
-              {laboratorios.map((lab) => (
-                <tr
-                  key={lab.id}
-                  className="border-t border-gray-100 hover:bg-gray-50/60"
+      <TablaDato
+        anchoMinimo="min-w-[720px]"
+        total={visibles.length}
+        herramienta={
+          <BarraBusqueda
+            id="buscar-laboratorio"
+            valor={busqueda}
+            onCambio={buscar}
+            etiqueta="Buscar laboratorio"
+            placeholder="Buscar por nombre o ubicación"
+          />
+        }
+        pie={
+          <Paginacion
+            desde={filtrados.length === 0 ? 0 : desde + 1}
+            hasta={desde + visibles.length}
+            total={filtrados.length}
+            pagina={paginaSegura}
+            totalPaginas={totalPaginas}
+            onCambio={setPagina}
+          />
+        }
+        columnas={[
+          { etiqueta: 'Nombre' },
+          { etiqueta: 'Ubicación' },
+          { etiqueta: 'Capacidad', clase: 'text-right' },
+          { etiqueta: 'Secciones', clase: 'text-right' },
+          { etiqueta: 'Estado' },
+          { etiqueta: 'Acciones', clase: 'text-right' },
+        ]}
+        vacio={
+          laboratorios.length === 0
+            ? {
+                titulo: 'Aún no hay laboratorios',
+                detalle: 'Crea el primero con el botón de arriba.',
+                icono: <FiBox size={22} />,
+              }
+            : {
+                titulo: 'Sin coincidencias',
+                detalle: `Ningún laboratorio coincide con «${busqueda.trim()}».`,
+                icono: <FiSearch size={22} />,
+                accion: { etiqueta: 'Limpiar búsqueda', onClic: limpiarBusqueda },
+              }
+        }
+      >
+        {visibles.map((lab) => (
+          <tr key={lab.id} className={CLASE_FILA}>
+            <td className={`${CLASE_CELDA} font-semibold text-gray-900`}>
+              {lab.nombre}
+            </td>
+            <td className={CLASE_CELDA}>
+              {lab.ubicacion ?? <span className="text-gray-500">—</span>}
+            </td>
+            <td
+              className={`${CLASE_CELDA} text-right font-medium tabular-nums text-gray-900`}
+            >
+              {lab.capacidad}
+            </td>
+            <td
+              className={`${CLASE_CELDA} text-right font-medium tabular-nums text-gray-900`}
+            >
+              {seccionesPorLaboratorio[lab.id] ?? 0}
+            </td>
+            <td className={CLASE_CELDA}>
+              <InterruptorEstado
+                accion={alternarLaboratorio}
+                id={lab.id}
+                activo={lab.activo}
+                etiqueta={{ activo: 'Activo', inactivo: 'Inactivo' }}
+              />
+            </td>
+            <td className={CLASE_CELDA}>
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditando(lab)}
+                  className={`${CLASE_ACCION} text-[#06065c] hover:bg-[#06065c]/10`}
                 >
-                  <td className="px-4 py-3 text-sm font-medium text-gray-900">
-                    {lab.nombre}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-600">
-                    {lab.ubicacion ?? <span className="text-gray-400">—</span>}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-600">
-                    {lab.capacidad}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-600">
-                    {seccionesPorLaboratorio[lab.id] ?? 0}
-                  </td>
-                  <td className="px-4 py-3">
-                    <InterruptorEstado
-                      accion={alternarLaboratorio}
-                      id={lab.id}
-                      activo={lab.activo}
-                      etiqueta={{ activo: 'Activo', inactivo: 'Inactivo' }}
-                    />
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setEditando(lab)}
-                        className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm text-[#06065c] transition-colors hover:bg-[#06065c]/10"
-                      >
-                        <FiEdit2 size={15} />
-                        Editar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setEliminando(lab)}
-                        className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm text-red-600 transition-colors hover:bg-red-50"
-                      >
-                        <FiTrash2 size={15} />
-                        Eliminar
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+                  <FiEdit2 size={15} />
+                  Editar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEliminando(lab)}
+                  className={`${CLASE_ACCION} text-red-600 hover:bg-red-50 hover:text-red-700`}
+                >
+                  <FiTrash2 size={15} />
+                  Eliminar
+                </button>
+              </div>
+            </td>
+          </tr>
+        ))}
+      </TablaDato>
 
       {modalNuevo && (
         <ModalBase titulo="Crear laboratorio" onCerrar={cerrarNuevo}>

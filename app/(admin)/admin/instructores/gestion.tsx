@@ -1,7 +1,14 @@
 'use client'
 
-import { useEffect, useState, useActionState } from 'react'
-import { FiEdit2, FiLayers, FiPlus, FiTrash2 } from 'react-icons/fi'
+import { useEffect, useMemo, useState, useActionState } from 'react'
+import {
+  FiEdit2,
+  FiLayers,
+  FiPlus,
+  FiSearch,
+  FiTrash2,
+  FiUsers,
+} from 'react-icons/fi'
 import {
   actualizarInstructor,
   alternarInstructor,
@@ -10,6 +17,16 @@ import {
 } from './actions'
 import { BotonesModal, Campo, ModalBase } from '@/components/ui/modal'
 import { InterruptorEstado } from '@/components/ui/interruptor-estado'
+import {
+  BarraBusqueda,
+  CLASE_ACCION,
+  CLASE_CELDA,
+  CLASE_FILA,
+  normalizar,
+  Paginacion,
+  POR_PAGINA,
+  TablaDato,
+} from '@/components/ui/tabla-dato'
 import {
   ESTADO_INICIAL,
   type EstadoAccion,
@@ -239,6 +256,29 @@ export default function GestionInstructores({
   const [editando, setEditando] = useState<Perfil | null>(null)
   const [eliminando, setEliminando] = useState<Perfil | null>(null)
   const [verSecciones, setVerSecciones] = useState<Perfil | null>(null)
+  const [busqueda, setBusqueda] = useState('')
+  const [pagina, setPagina] = useState(1)
+
+  // Filtrado en el cliente sobre los datos ya cargados, sin acentos.
+  const filtrados = useMemo(() => {
+    const texto = normalizar(busqueda)
+    if (!texto) return cuentas
+    return cuentas.filter((cuenta) =>
+      normalizar(`${cuenta.nombre} ${cuenta.email ?? ''}`).includes(texto)
+    )
+  }, [cuentas, busqueda])
+
+  const totalPaginas = Math.max(1, Math.ceil(filtrados.length / POR_PAGINA))
+  const paginaSegura = Math.min(pagina, totalPaginas)
+  const desde = (paginaSegura - 1) * POR_PAGINA
+  const visibles = filtrados.slice(desde, desde + POR_PAGINA)
+
+  const buscar = (valor: string) => {
+    setBusqueda(valor)
+    setPagina(1) // una búsqueda nueva siempre vuelve a la primera página
+  }
+
+  const limpiarBusqueda = () => buscar('')
 
   const activas = cuentas.filter((c) => c.activo).length
   const totalSecciones = Object.values(seccionesPorInstructor).reduce(
@@ -264,97 +304,113 @@ export default function GestionInstructores({
         </button>
       </div>
 
-      <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] text-left">
-            <thead className="bg-gray-50">
-              <tr className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                <th className="px-4 py-3">Nombre</th>
-                <th className="px-4 py-3">Correo</th>
-                <th className="px-4 py-3">Secciones</th>
-                <th className="px-4 py-3">Estado</th>
-                <th className="px-4 py-3 text-right">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {cuentas.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={5}
-                    className="px-4 py-10 text-center text-sm text-gray-500"
+      <TablaDato
+        anchoMinimo="min-w-[720px]"
+        total={visibles.length}
+        herramienta={
+          <BarraBusqueda
+            id="buscar-instructor"
+            valor={busqueda}
+            onCambio={buscar}
+            etiqueta="Buscar instructor"
+            placeholder="Buscar por nombre o correo"
+          />
+        }
+        pie={
+          <Paginacion
+            desde={filtrados.length === 0 ? 0 : desde + 1}
+            hasta={desde + visibles.length}
+            total={filtrados.length}
+            pagina={paginaSegura}
+            totalPaginas={totalPaginas}
+            onCambio={setPagina}
+          />
+        }
+        columnas={[
+          { etiqueta: 'Nombre' },
+          { etiqueta: 'Correo' },
+          { etiqueta: 'Secciones', clase: 'text-right' },
+          { etiqueta: 'Estado' },
+          { etiqueta: 'Acciones', clase: 'text-right' },
+        ]}
+        vacio={
+          cuentas.length === 0
+            ? {
+                titulo: 'Aún no hay cuentas de instructor',
+                detalle: 'Crea la primera con el botón de arriba.',
+                icono: <FiUsers size={22} />,
+              }
+            : {
+                titulo: 'Sin coincidencias',
+                detalle: `Ninguna cuenta coincide con «${busqueda.trim()}».`,
+                icono: <FiSearch size={22} />,
+                accion: { etiqueta: 'Limpiar búsqueda', onClic: limpiarBusqueda },
+              }
+        }
+      >
+        {visibles.map((cuenta) => {
+          const secciones = seccionesPorInstructor[cuenta.id] ?? []
+          return (
+            <tr key={cuenta.id} className={CLASE_FILA}>
+              <td className={CLASE_CELDA}>
+                <button
+                  type="button"
+                  onClick={() => setVerSecciones(cuenta)}
+                  className="text-left text-sm font-semibold text-[#06065c] underline-offset-4 transition-colors hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#06065c]"
+                  title="Ver secciones que maneja"
+                >
+                  {cuenta.nombre}
+                </button>
+              </td>
+              <td className={CLASE_CELDA}>
+                {cuenta.email ?? <span className="text-gray-500">—</span>}
+              </td>
+              <td
+                className={`${CLASE_CELDA} text-right font-medium tabular-nums text-gray-900`}
+              >
+                {secciones.length}
+              </td>
+              <td className={CLASE_CELDA}>
+                <InterruptorEstado
+                  accion={alternarInstructor}
+                  id={cuenta.id}
+                  activo={cuenta.activo}
+                  etiqueta={{ activo: 'Activo', inactivo: 'Inactivo' }}
+                />
+              </td>
+              <td className={CLASE_CELDA}>
+                <div className="flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setVerSecciones(cuenta)}
+                    className={`${CLASE_ACCION} text-gray-600 hover:bg-gray-100 hover:text-gray-900`}
+                    title="Ver secciones"
                   >
-                    Aún no hay cuentas de instructor. Crea la primera con el
-                    botón de arriba.
-                  </td>
-                </tr>
-              )}
-              {cuentas.map((cuenta) => {
-                const secciones = seccionesPorInstructor[cuenta.id] ?? []
-                return (
-                  <tr
-                    key={cuenta.id}
-                    className="border-t border-gray-100 hover:bg-gray-50/60"
+                    <FiLayers size={15} />
+                    Secciones
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditando(cuenta)}
+                    className={`${CLASE_ACCION} text-[#06065c] hover:bg-[#06065c]/10`}
                   >
-                    <td className="px-4 py-3">
-                      <button
-                        type="button"
-                        onClick={() => setVerSecciones(cuenta)}
-                        className="text-left text-sm font-medium text-[#06065c] underline-offset-2 hover:underline"
-                        title="Ver secciones que maneja"
-                      >
-                        {cuenta.nombre}
-                      </button>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-600">
-                      {cuenta.email ?? '—'}
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-600">
-                      {secciones.length}
-                    </td>
-                    <td className="px-4 py-3">
-                      <InterruptorEstado
-                        accion={alternarInstructor}
-                        id={cuenta.id}
-                        activo={cuenta.activo}
-                        etiqueta={{ activo: 'Activo', inactivo: 'Inactivo' }}
-                      />
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setVerSecciones(cuenta)}
-                          className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm text-gray-600 transition-colors hover:bg-gray-100"
-                          title="Ver secciones"
-                        >
-                          <FiLayers size={15} />
-                          Secciones
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setEditando(cuenta)}
-                          className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm text-[#06065c] transition-colors hover:bg-[#06065c]/10"
-                        >
-                          <FiEdit2 size={15} />
-                          Editar
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setEliminando(cuenta)}
-                          className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm text-red-600 transition-colors hover:bg-red-50"
-                        >
-                          <FiTrash2 size={15} />
-                          Eliminar
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      </section>
+                    <FiEdit2 size={15} />
+                    Editar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEliminando(cuenta)}
+                    className={`${CLASE_ACCION} text-red-600 hover:bg-red-50 hover:text-red-700`}
+                  >
+                    <FiTrash2 size={15} />
+                    Eliminar
+                  </button>
+                </div>
+              </td>
+            </tr>
+          )
+        })}
+      </TablaDato>
 
       {modalNuevo && (
         <ModalBase titulo="Crear cuenta de instructor" onCerrar={() => setModalNuevo(false)}>
