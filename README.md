@@ -43,7 +43,8 @@ Sistema **interno** para la universidad de manejo de asistencias, inscripciones 
 ```
 USUARIOS (auth de Supabase)
 perfiles      : id UUID PK (FK → auth.users), rol ('admin'|'instructor'),
-                nombre, activo BOOL
+                nombre, email (espejo de auth.users, lo llena el trigger),
+                activo BOOL
 
 CATÁLOGO (lo maneja el admin)
 laboratorios  : id, nombre, ubicacion, capacidad INT, activo BOOL
@@ -199,7 +200,7 @@ supabase/
 1. [x] Estructura del proyecto Next.js (App Router) + carpetas
 2. [x] Tablas en Supabase + políticas RLS (+ seed de periodos Q1–Q4 por año)
 3. [x] Auth y roles (admin / instructor)
-4. [ ] CRUD de admin (laboratorios, cuentas de instructores)
+4. [x] CRUD de admin (laboratorios, cuentas de instructores)
 5. [ ] Secciones del instructor + generación de QR de registro
 6. [ ] Registro público por QR, marcado de asistencia, notas finales
 7. [ ] Reportes Excel (modos A/B) + preview + envío por correo
