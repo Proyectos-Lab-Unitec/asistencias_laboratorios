@@ -179,7 +179,7 @@ function DetalleSecciones({
           {secciones.map((s) => (
             <li key={s.id} className="px-3 py-2.5">
               <p className="text-sm font-medium text-gray-900">
-                {s.laboratorio} · Grupo {s.grupo}
+                {s.laboratorio} · Sección {s.grupo}
               </p>
               <p className="mt-0.5 text-xs text-gray-500">
                 {[s.periodo, s.horario, s.docente ? `Docente: ${s.docente}` : null]
