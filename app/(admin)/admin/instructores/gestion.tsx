@@ -4,10 +4,12 @@ import { useEffect, useState, useActionState } from 'react'
 import { FiEdit2, FiLayers, FiPlus, FiTrash2 } from 'react-icons/fi'
 import {
   actualizarInstructor,
+  alternarInstructor,
   eliminarInstructor,
   crearInstructor,
 } from './actions'
 import { BotonesModal, Campo, ModalBase } from '@/components/ui/modal'
+import { InterruptorEstado } from '@/components/ui/interruptor-estado'
 import {
   ESTADO_INICIAL,
   type EstadoAccion,
@@ -310,15 +312,12 @@ export default function GestionInstructores({
                       {secciones.length}
                     </td>
                     <td className="px-4 py-3">
-                      <span
-                        className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                          cuenta.activo
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-gray-100 text-gray-500'
-                        }`}
-                      >
-                        {cuenta.activo ? 'Activo' : 'Inactivo'}
-                      </span>
+                      <InterruptorEstado
+                        accion={alternarInstructor}
+                        id={cuenta.id}
+                        activo={cuenta.activo}
+                        etiqueta={{ activo: 'Activo', inactivo: 'Inactivo' }}
+                      />
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-2">

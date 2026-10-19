@@ -4,10 +4,12 @@ import { useEffect, useState, useActionState } from 'react'
 import { FiEdit2, FiPlus, FiTrash2 } from 'react-icons/fi'
 import {
   actualizarLaboratorio,
+  alternarLaboratorio,
   eliminarLaboratorio,
   crearLaboratorio,
 } from './actions'
 import { BotonesModal, Campo, ModalBase } from '@/components/ui/modal'
+import { InterruptorEstado } from '@/components/ui/interruptor-estado'
 import { ESTADO_INICIAL, type EstadoAccion, type Laboratorio } from '@/lib/types'
 
 type AccionForm = (
@@ -169,9 +171,8 @@ export default function GestionLaboratorios({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-gray-500">
-          {plural(laboratorios.length, 'laboratorio')} · {activos} activo
-          {activos === 1 ? '' : 's'} · {plural(totalSecciones, 'sección')} en
-          total
+          Laboratorios: {laboratorios.length} ● Activos: {activos} ● Secciones en
+          total: {totalSecciones}
         </p>
         <button
           type="button"
@@ -185,7 +186,7 @@ export default function GestionLaboratorios({
 
       <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] text-left">
+          <table className="w-full min-w-180 text-left">
             <thead className="bg-gray-50">
               <tr className="text-xs font-semibold uppercase tracking-wide text-gray-500">
                 <th className="px-4 py-3">Nombre</th>
@@ -226,15 +227,12 @@ export default function GestionLaboratorios({
                     {seccionesPorLaboratorio[lab.id] ?? 0}
                   </td>
                   <td className="px-4 py-3">
-                    <span
-                      className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                        lab.activo
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-gray-100 text-gray-500'
-                      }`}
-                    >
-                      {lab.activo ? 'Activo' : 'Inactivo'}
-                    </span>
+                    <InterruptorEstado
+                      accion={alternarLaboratorio}
+                      id={lab.id}
+                      activo={lab.activo}
+                      etiqueta={{ activo: 'Activo', inactivo: 'Inactivo' }}
+                    />
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-2">
