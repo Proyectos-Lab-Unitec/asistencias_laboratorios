@@ -4,6 +4,43 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
+// Si la llamada a autenticación no responde, cortamos para no dejar el botón
+// clavado en "Iniciando..." para siempre.
+const TIMEOUT_MS = 20_000
+
+async function conTimeout<T>(
+  promesa: PromiseLike<T>,
+  ms: number = TIMEOUT_MS
+): Promise<T> {
+  // Los builders de Postgrest (p. ej. .single()) son thenables pero no
+  // Promise, así que los normalizamos antes de la carrera.
+  const promesaReal = Promise.resolve(promesa)
+
+  let timer: ReturnType<typeof setTimeout> | undefined
+
+  const expira = new Promise<never>((_ok, ko) => {
+    timer = setTimeout(
+      () =>
+        ko(
+          new Error(
+            'El servidor de autenticación no responde. Intenta nuevamente.'
+          )
+        ),
+      ms
+    )
+  })
+
+  // Evita un "unhandled rejection" si la promesa pierde la carrera y falla
+  // después de que ya devolvimos el timeout.
+  promesaReal.catch(() => {})
+
+  try {
+    return await Promise.race([promesaReal, expira])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
+}
+
 export default function LoginPage() {
   const router = useRouter()
   const [loginEmail, setLoginEmail] = useState('')
@@ -22,19 +59,22 @@ export default function LoginPage() {
     try {
       const supabase = createClient()
 
-      const { data: sesion, error: loginError } =
-        await supabase.auth.signInWithPassword({
+      const { data: sesion, error: loginError } = await conTimeout(
+        supabase.auth.signInWithPassword({
           email: loginEmail.trim().toLowerCase(),
           password: loginPassword,
         })
+      )
 
       if (loginError) throw loginError
 
-      const { data: perfil, error: perfilError } = await supabase
-        .from('perfiles')
-        .select('rol, activo')
-        .eq('id', sesion.user.id)
-        .single()
+      const { data: perfil, error: perfilError } = await conTimeout(
+        supabase
+          .from('perfiles')
+          .select('rol, activo')
+          .eq('id', sesion.user.id)
+          .single()
+      )
 
       if (perfilError) throw perfilError
 
@@ -57,8 +97,18 @@ export default function LoginPage() {
           ? 'Correo o contraseña incorrectos.'
           : msg
       )
-      const supabase = createClient()
-      await supabase.auth.signOut()
+
+      // Limpieza best-effort de una sesión a medias. Va con timeout corto:
+      // si esta llamada se colgara, el finally de abajo nunca se ejecutaría
+      // y el botón volvería a quedarse clavado.
+      try {
+        await conTimeout(createClient().auth.signOut(), 5_000)
+      } catch {
+        // se ignora: lo importante es que el botón quede habilitado
+      }
+    } finally {
+      // SIEMPRE se reinicia, incluso si el catch lanza. Sin esto el botón
+      // queda en "Iniciando..." y el guard de arriba bloquea todo lo demás.
       setLoginLoading(false)
     }
   }
