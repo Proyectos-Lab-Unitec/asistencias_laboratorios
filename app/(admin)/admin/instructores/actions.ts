@@ -145,3 +145,37 @@ export async function alternarInstructor(
   revalidatePath('/admin/instructores')
   return OK
 }
+
+/**
+ * Borrado físico de la cuenta. Borra el usuario en auth.users y el cascade
+ * de perfiles arrastra el resto: secciones, y por cascada también
+ * matrículas, sesiones y asistencias.
+ */
+export async function eliminarInstructor(
+  _previo: EstadoAccion,
+  formData: FormData
+): Promise<EstadoAccion> {
+  const admin = await requiereAdmin()
+  if (!admin) return SIN_PERMISO
+
+  const id = String(formData.get('id') ?? '').trim()
+  if (!id) return { ok: false, error: 'Cuenta no válida.' }
+
+  // Un admin no puede borrarse a sí mismo desde el propio panel
+  if (id === admin.id) {
+    return {
+      ok: false,
+      error: 'No puedes eliminar la cuenta con la que estás usando el sistema.',
+    }
+  }
+
+  const auth = createAdminClient()
+  const { error } = await auth.auth.admin.deleteUser(id)
+
+  if (error) {
+    return { ok: false, error: `No se pudo eliminar la cuenta: ${error.message}` }
+  }
+
+  revalidatePath('/admin/instructores')
+  return OK
+}

@@ -81,3 +81,13 @@ export type Asistencia = {
   marcado_por: string | null
   hora: string
 }
+
+/** Lo que muestra el admin de cada sección al abrir el detalle de un instructor */
+export type SeccionResumen = {
+  id: number
+  grupo: string
+  horario: string | null
+  docente: string | null
+  laboratorio: string
+  periodo: string
+}
