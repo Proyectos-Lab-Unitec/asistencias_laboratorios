@@ -1,29 +1,23 @@
 'use client'
 
-import { useCallback, useEffect, useState, useActionState } from 'react'
-import { FiEdit2, FiPlus, FiX } from 'react-icons/fi'
+import { useEffect, useState, useActionState } from 'react'
+import { FiEdit2, FiPlus, FiTrash2 } from 'react-icons/fi'
 import {
   actualizarLaboratorio,
-  alternarLaboratorio,
+  eliminarLaboratorio,
   crearLaboratorio,
 } from './actions'
-import {
-  ESTADO_INICIAL,
-  type EstadoAccion,
-  type Laboratorio,
-} from '@/lib/types'
-
-const claseInput =
-  'w-full rounded-lg border border-gray-300 p-3 text-sm text-black focus:outline-none focus:ring-2 focus:ring-[#06065c]'
-const claseBtnPrimario =
-  'inline-flex items-center gap-2 rounded-lg bg-[#06065c] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#0f49b6] disabled:cursor-not-allowed disabled:opacity-50'
-const claseBtnSecundario =
-  'rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50'
+import { BotonesModal, Campo, ModalBase } from '@/components/ui/modal'
+import { ESTADO_INICIAL, type EstadoAccion, type Laboratorio } from '@/lib/types'
 
 type AccionForm = (
   previo: EstadoAccion,
   formData: FormData
 ) => Promise<EstadoAccion>
+
+function plural(n: number, palabra: string) {
+  return `${n} ${palabra}${n === 1 ? '' : 'es'}`
+}
 
 function FormularioLaboratorio({
   accion,
@@ -33,224 +27,171 @@ function FormularioLaboratorio({
 }: {
   accion: AccionForm
   inicial?: Laboratorio
-  onExito?: () => void
-  onCancelar?: () => void
+  onExito: () => void
+  onCancelar: () => void
 }) {
   const [estado, enviar, pendiente] = useActionState(accion, ESTADO_INICIAL)
+  const [nombre, setNombre] = useState(inicial?.nombre ?? '')
+  const [ubicacion, setUbicacion] = useState(inicial?.ubicacion ?? '')
+  const [capacidad, setCapacidad] = useState(String(inicial?.capacidad ?? 30))
 
   useEffect(() => {
-    if (estado.ok) onExito?.()
+    if (estado.ok) onExito()
   }, [estado, onExito])
 
   return (
-    <form action={enviar} className="grid gap-4 md:grid-cols-[1.4fr_1.4fr_160px_auto]">
+    <form action={enviar} className="space-y-4">
       {inicial && <input type="hidden" name="id" value={inicial.id} />}
 
-      <div>
-        <label className="mb-1 block text-sm font-medium text-gray-700">
-          Nombre
-        </label>
-        <input
-          name="nombre"
-          defaultValue={inicial?.nombre ?? ''}
-          required
-          maxLength={120}
-          disabled={pendiente}
-          placeholder="Laboratorio 1"
-          className={claseInput}
-        />
-      </div>
+      <Campo
+        label="Nombre"
+        name="nombre"
+        valor={nombre}
+        onChange={setNombre}
+        placeholder="Laboratorio 1"
+        disabled={pendiente}
+        requerido
+        maxLength={120}
+      />
 
-      <div>
-        <label className="mb-1 block text-sm font-medium text-gray-700">
-          Ubicación
-        </label>
-        <input
-          name="ubicacion"
-          defaultValue={inicial?.ubicacion ?? ''}
-          maxLength={160}
-          disabled={pendiente}
-          placeholder="Edificio B, piso 2"
-          className={claseInput}
-        />
-      </div>
+      <Campo
+        label="Ubicación"
+        name="ubicacion"
+        valor={ubicacion}
+        onChange={setUbicacion}
+        placeholder="Edificio B, piso 2"
+        disabled={pendiente}
+        maxLength={160}
+      />
 
-      <div>
-        <label className="mb-1 block text-sm font-medium text-gray-700">
-          Capacidad
-        </label>
-        <input
-          name="capacidad"
-          type="number"
-          min={1}
-          defaultValue={inicial?.capacidad ?? 30}
-          required
-          disabled={pendiente}
-          className={claseInput}
-        />
-      </div>
-
-      <div className="flex items-end gap-2">
-        <button type="submit" disabled={pendiente} className={claseBtnPrimario}>
-          {pendiente ? 'Guardando…' : inicial ? 'Guardar' : 'Crear'}
-        </button>
-        {onCancelar && (
-          <button
-            type="button"
-            onClick={onCancelar}
-            disabled={pendiente}
-            className={claseBtnSecundario}
-          >
-            Cancelar
-          </button>
-        )}
-      </div>
+      <Campo
+        label="Capacidad"
+        name="capacidad"
+        tipo="number"
+        valor={capacidad}
+        onChange={setCapacidad}
+        disabled={pendiente}
+        requerido
+        min={1}
+      />
 
       {estado.error && (
-        <p className="text-sm text-red-600 md:col-span-full">{estado.error}</p>
+        <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
+          {estado.error}
+        </p>
       )}
+
+      <BotonesModal
+        onCancelar={onCancelar}
+        guardando={pendiente}
+        texto={inicial ? 'Guardar cambios' : 'Crear laboratorio'}
+        textoGuardando="Guardando..."
+      />
     </form>
   )
 }
 
-function FilaLaboratorio({
+function ConfirmarEliminacion({
   laboratorio,
-  onEditar,
+  secciones,
+  onExito,
+  onCancelar,
 }: {
   laboratorio: Laboratorio
-  onEditar: () => void
+  secciones: number
+  onExito: () => void
+  onCancelar: () => void
 }) {
   const [estado, enviar, pendiente] = useActionState(
-    alternarLaboratorio,
+    eliminarLaboratorio,
     ESTADO_INICIAL
   )
 
+  useEffect(() => {
+    if (estado.ok) onExito()
+  }, [estado, onExito])
+
   return (
-    <tr className="border-t border-gray-100 hover:bg-gray-50/60">
-      <td className="px-4 py-3 text-sm text-gray-500">{laboratorio.id}</td>
-      <td className="px-4 py-3 text-sm font-medium text-gray-900">
-        {laboratorio.nombre}
-      </td>
-      <td className="px-4 py-3 text-sm text-gray-600">
-        {laboratorio.ubicacion ?? <span className="text-gray-400">—</span>}
-      </td>
-      <td className="px-4 py-3 text-sm text-gray-600">
-        {laboratorio.capacidad}
-      </td>
-      <td className="px-4 py-3">
-        <span
-          className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-            laboratorio.activo
-              ? 'bg-green-100 text-green-700'
-              : 'bg-gray-100 text-gray-500'
-          }`}
-        >
-          {laboratorio.activo ? 'Activo' : 'Inactivo'}
-        </span>
-      </td>
-      <td className="px-4 py-3">
-        <div className="flex items-center justify-end gap-2">
-          {estado.error && (
-            <span className="text-xs text-red-600">{estado.error}</span>
-          )}
-          <button
-            type="button"
-            onClick={onEditar}
-            className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm text-[#06065c] transition-colors hover:bg-[#06065c]/10"
-          >
-            <FiEdit2 size={15} />
-            Editar
-          </button>
-          <form action={enviar}>
-            <input type="hidden" name="id" value={laboratorio.id} />
-            <input
-              type="hidden"
-              name="activo"
-              value={String(!laboratorio.activo)}
-            />
-            <button
-              type="submit"
-              disabled={pendiente}
-              className="rounded-lg px-2.5 py-1.5 text-sm text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50"
-            >
-              {pendiente
-                ? 'Procesando…'
-                : laboratorio.activo
-                  ? 'Desactivar'
-                  : 'Activar'}
-            </button>
-          </form>
-        </div>
-      </td>
-    </tr>
+    <form action={enviar}>
+      <input type="hidden" name="id" value={laboratorio.id} />
+
+      <p className="text-sm text-gray-600">
+        ¿Estás seguro de que deseas eliminar{' '}
+        <strong>{laboratorio.nombre}</strong>?
+      </p>
+
+      <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
+        {secciones > 0
+          ? `Se eliminarán también ${plural(secciones, 'sección')} que maneja, con sus matrículas, sesiones y asistencias.`
+          : 'Este laboratorio no tiene secciones asociadas, así que solo se borra el registro.'}{' '}
+        Esta acción no se puede deshacer.
+      </p>
+
+      {estado.error && (
+        <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
+          {estado.error}
+        </p>
+      )}
+
+      <BotonesModal
+        onCancelar={onCancelar}
+        guardando={pendiente}
+        texto="Eliminar"
+        textoGuardando="Eliminando..."
+        peligro
+      />
+    </form>
   )
 }
 
 export default function GestionLaboratorios({
   laboratorios,
+  seccionesPorLaboratorio,
 }: {
   laboratorios: Laboratorio[]
+  seccionesPorLaboratorio: Record<number, number>
 }) {
-  const [mostrarForm, setMostrarForm] = useState(false)
+  const [modalNuevo, setModalNuevo] = useState(false)
   const [editando, setEditando] = useState<Laboratorio | null>(null)
+  const [eliminando, setEliminando] = useState<Laboratorio | null>(null)
 
-  const cerrarForm = useCallback(() => setMostrarForm(false), [])
-  const cerrarEdicion = useCallback(() => setEditando(null), [])
+  const cerrarNuevo = () => setModalNuevo(false)
+  const cerrarEdicion = () => setEditando(null)
+  const cerrarEliminacion = () => setEliminando(null)
 
   const activos = laboratorios.filter((lab) => lab.activo).length
+  const totalSecciones = Object.values(seccionesPorLaboratorio).reduce(
+    (a, b) => a + b,
+    0
+  )
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-gray-500">
-          {laboratorios.length} laboratorio
-          {laboratorios.length === 1 ? '' : 's'} en total · {activos} activo
-          {activos === 1 ? '' : 's'}
+          {plural(laboratorios.length, 'laboratorio')} · {activos} activo
+          {activos === 1 ? '' : 's'} · {plural(totalSecciones, 'sección')} en
+          total
         </p>
-        {!mostrarForm && (
-          <button
-            type="button"
-            onClick={() => setMostrarForm(true)}
-            className={claseBtnPrimario}
-          >
-            <FiPlus size={16} />
-            Nuevo laboratorio
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={() => setModalNuevo(true)}
+          className="inline-flex items-center gap-2 rounded-lg bg-[#06065c] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#0f49b6]"
+        >
+          <FiPlus size={16} />
+          Nuevo laboratorio
+        </button>
       </div>
-
-      {mostrarForm && (
-        <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-base font-semibold text-gray-900">
-              Crear laboratorio
-            </h2>
-            <button
-              type="button"
-              onClick={cerrarForm}
-              aria-label="Cerrar"
-              className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
-            >
-              <FiX size={18} />
-            </button>
-          </div>
-          <FormularioLaboratorio
-            accion={crearLaboratorio}
-            onExito={cerrarForm}
-            onCancelar={cerrarForm}
-          />
-        </section>
-      )}
 
       <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[720px] text-left">
             <thead className="bg-gray-50">
               <tr className="text-xs font-semibold uppercase tracking-wide text-gray-500">
-                <th className="px-4 py-3">ID</th>
                 <th className="px-4 py-3">Nombre</th>
                 <th className="px-4 py-3">Ubicación</th>
                 <th className="px-4 py-3">Capacidad</th>
+                <th className="px-4 py-3">Secciones</th>
                 <th className="px-4 py-3">Estado</th>
                 <th className="px-4 py-3 text-right">Acciones</th>
               </tr>
@@ -268,32 +209,72 @@ export default function GestionLaboratorios({
                 </tr>
               )}
               {laboratorios.map((lab) => (
-                <FilaLaboratorio
+                <tr
                   key={lab.id}
-                  laboratorio={lab}
-                  onEditar={() => setEditando(lab)}
-                />
+                  className="border-t border-gray-100 hover:bg-gray-50/60"
+                >
+                  <td className="px-4 py-3 text-sm font-medium text-gray-900">
+                    {lab.nombre}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-600">
+                    {lab.ubicacion ?? <span className="text-gray-400">—</span>}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-600">
+                    {lab.capacidad}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-gray-600">
+                    {seccionesPorLaboratorio[lab.id] ?? 0}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                        lab.activo
+                          ? 'bg-green-100 text-green-700'
+                          : 'bg-gray-100 text-gray-500'
+                      }`}
+                    >
+                      {lab.activo ? 'Activo' : 'Inactivo'}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setEditando(lab)}
+                        className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm text-[#06065c] transition-colors hover:bg-[#06065c]/10"
+                      >
+                        <FiEdit2 size={15} />
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEliminando(lab)}
+                        className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm text-red-600 transition-colors hover:bg-red-50"
+                      >
+                        <FiTrash2 size={15} />
+                        Eliminar
+                      </button>
+                    </div>
+                  </td>
+                </tr>
               ))}
             </tbody>
           </table>
         </div>
       </section>
 
+      {modalNuevo && (
+        <ModalBase titulo="Crear laboratorio" onCerrar={cerrarNuevo}>
+          <FormularioLaboratorio
+            accion={crearLaboratorio}
+            onExito={cerrarNuevo}
+            onCancelar={cerrarNuevo}
+          />
+        </ModalBase>
+      )}
+
       {editando && (
-        <section className="rounded-xl border border-[#06065c]/20 bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-base font-semibold text-gray-900">
-              Editando: {editando.nombre}
-            </h2>
-            <button
-              type="button"
-              onClick={cerrarEdicion}
-              aria-label="Cerrar"
-              className="rounded-lg p-1.5 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700"
-            >
-              <FiX size={18} />
-            </button>
-          </div>
+        <ModalBase titulo="Editar laboratorio" onCerrar={cerrarEdicion}>
           <FormularioLaboratorio
             key={editando.id}
             accion={actualizarLaboratorio}
@@ -301,7 +282,19 @@ export default function GestionLaboratorios({
             onExito={cerrarEdicion}
             onCancelar={cerrarEdicion}
           />
-        </section>
+        </ModalBase>
+      )}
+
+      {eliminando && (
+        <ModalBase titulo="Eliminar laboratorio" onCerrar={cerrarEliminacion}>
+          <ConfirmarEliminacion
+            key={eliminando.id}
+            laboratorio={eliminando}
+            secciones={seccionesPorLaboratorio[eliminando.id] ?? 0}
+            onExito={cerrarEliminacion}
+            onCancelar={cerrarEliminacion}
+          />
+        </ModalBase>
       )}
     </div>
   )

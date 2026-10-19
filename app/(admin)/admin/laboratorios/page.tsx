@@ -12,11 +12,22 @@ export default async function LaboratoriosPage() {
 
   const supabase = await createClient()
 
-  const { data } = await supabase
-    .from('laboratorios')
-    .select('id, nombre, ubicacion, capacidad, activo, created_at')
-    .order('activo', { ascending: false })
-    .order('nombre', { ascending: true })
+  const [{ data: laboratorios }, { data: secciones }] = await Promise.all([
+    supabase
+      .from('laboratorios')
+      .select('id, nombre, ubicacion, capacidad, activo, created_at')
+      .order('activo', { ascending: false })
+      .order('nombre', { ascending: true }),
+    supabase.from('secciones').select('id, laboratorio_id'),
+  ])
+
+  // Cuántas secciones usa cada laboratorio: se muestra en la tabla y es lo
+  // que avisa el modal antes de un borrado físico.
+  const seccionesPorLaboratorio: Record<number, number> = {}
+  for (const seccion of secciones ?? []) {
+    seccionesPorLaboratorio[seccion.laboratorio_id] =
+      (seccionesPorLaboratorio[seccion.laboratorio_id] ?? 0) + 1
+  }
 
   return (
     <div className="space-y-6">
@@ -28,7 +39,10 @@ export default async function LaboratoriosPage() {
         </p>
       </header>
 
-      <GestionLaboratorios laboratorios={data ?? []} />
+      <GestionLaboratorios
+        laboratorios={laboratorios ?? []}
+        seccionesPorLaboratorio={seccionesPorLaboratorio}
+      />
     </div>
   )
 }

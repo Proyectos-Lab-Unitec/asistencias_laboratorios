@@ -107,6 +107,39 @@ export async function actualizarLaboratorio(
  * Baja lógica (activo = false). No borra de verdad porque secciones y
  * matrículas referencian el laboratorio.
  */
+/**
+ * Borrado físico. La FK de secciones.laboratorio_id propaga en cascada
+ * (migración 20261018020000), así que desaparecen también matrículas,
+ * sesiones y asistencias de ese laboratorio.
+ */
+export async function eliminarLaboratorio(
+  _previo: EstadoAccion,
+  formData: FormData
+): Promise<EstadoAccion> {
+  const admin = await obtenerAdmin()
+  if (!admin) return { ok: false, error: 'No tienes permiso para hacer esto.' }
+
+  const id = Number.parseInt(String(formData.get('id') ?? ''), 10)
+  if (!Number.isInteger(id)) {
+    return { ok: false, error: 'Laboratorio no válido.' }
+  }
+
+  const { error } = await admin.from('laboratorios').delete().eq('id', id)
+
+  if (error) {
+    return {
+      ok: false,
+      error:
+        error.code === '23503'
+          ? 'No se pudo eliminar: el laboratorio todavía tiene registros asociados.'
+          : `No se pudo eliminar: ${error.message}`,
+    }
+  }
+
+  revalidatePath('/admin/laboratorios')
+  return OK
+}
+
 export async function alternarLaboratorio(
   _previo: EstadoAccion,
   formData: FormData
