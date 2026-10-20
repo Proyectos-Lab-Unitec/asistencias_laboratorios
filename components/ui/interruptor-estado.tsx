@@ -9,12 +9,17 @@ import { ESTADO_INICIAL, type EstadoAccion } from '@/lib/types'
  * Va en la columna Estado de las tablas del admin. Existe como pieza
  * aparte porque cada fila necesita su propio useActionState (no se puede
  * llamar un hook dentro de un map).
+ *
+ * `sobreOscuro` invierte la paleta para uso sobre la banda azul de marca:
+ * ahí el azul activo normal sería invisible contra el mismo azul del fondo,
+ * así que la píldora se vuelve blanca y el rótulo claro.
  */
 export function InterruptorEstado({
   accion,
   id,
   activo,
   etiqueta,
+  sobreOscuro = false,
 }: {
   accion: (
     previo: EstadoAccion,
@@ -23,8 +28,13 @@ export function InterruptorEstado({
   id: string | number
   activo: boolean
   etiqueta: { activo: string; inactivo: string }
+  sobreOscuro?: boolean
 }) {
   const [estado, enviar, pendiente] = useActionState(accion, ESTADO_INICIAL)
+
+  const activoClase = sobreOscuro ? 'bg-white' : 'bg-[#06065c]'
+  const inactivoClase = sobreOscuro ? 'bg-white/25' : 'bg-gray-300'
+  const rielClase = sobreOscuro && activo ? 'bg-[#06065c]' : 'bg-white'
 
   return (
     <form action={enviar} className="flex items-center gap-2.5">
@@ -38,22 +48,30 @@ export function InterruptorEstado({
         aria-label={activo ? etiqueta.activo : etiqueta.inactivo}
         disabled={pendiente}
         className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
-          activo ? 'bg-[#06065c]' : 'bg-gray-300'
+          activo ? activoClase : inactivoClase
         }`}
       >
         <span
-          className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
+          className={`inline-block h-3.5 w-3.5 transform rounded-full shadow transition-transform ${rielClase} ${
             activo ? 'translate-x-[18px]' : 'translate-x-[3px]'
           }`}
         />
       </button>
 
-      <span className="text-xs font-medium text-gray-600">
+      <span
+        className={`text-xs font-medium ${
+          sobreOscuro ? 'text-white/85' : 'text-gray-600'
+        }`}
+      >
         {pendiente ? 'Guardando…' : activo ? etiqueta.activo : etiqueta.inactivo}
       </span>
 
       {estado.error && (
-        <span className="text-xs text-red-600">{estado.error}</span>
+        <span
+          className={`text-xs ${sobreOscuro ? 'text-red-300' : 'text-red-600'}`}
+        >
+          {estado.error}
+        </span>
       )}
     </form>
   )
