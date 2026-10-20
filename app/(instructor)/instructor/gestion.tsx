@@ -1,8 +1,10 @@
 'use client'
 
 import { useEffect, useMemo, useState, useActionState } from 'react'
+import Link from 'next/link'
 import { QRCodeSVG } from 'qrcode.react'
 import {
+  FiCalendar,
   FiCopy,
   FiEdit2,
   FiGrid,
@@ -451,6 +453,14 @@ export default function GestionSecciones({
             </td>
             <td className={CLASE_CELDA}>
               <div className="flex items-center justify-end gap-2">
+                <Link
+                  href={`/instructor/asistencia/${s.id}`}
+                  className={`${CLASE_ACCION} text-[#06065c] hover:bg-[#06065c]/10`}
+                  title="Marcar asistencia del día"
+                >
+                  <FiCalendar size={15} />
+                  Asistencia
+                </Link>
                 <button
                   type="button"
                   onClick={() => setQr(s)}
