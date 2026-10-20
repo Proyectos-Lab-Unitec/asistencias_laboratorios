@@ -102,15 +102,18 @@ asistencias   : id, sesion_id FK → sesiones,
 6. También puede agregar alumnos manualmente (`origen='manual'`).
 
 ### 4.2 Asistencia manual
-1. Cada día el instructor abre una **sesión** (asociada a la fecha de hoy; `UNIQUE(seccion_id, fecha)`).
+1. El instructor abre la **sesión** de un día con un calendario: por defecto hoy, y también puede dar de alta una fecha pasada que se pasó por alto. No se aceptan fechas futuras (`UNIQUE(seccion_id, fecha)`).
 2. Ve la lista de inscritos con toggle **presente/ausente** (o "marcar todos presentes" y corregir).
-3. Cierra la sesión al terminar la clase.
+3. Cierra la sesión al terminar la clase; reabrirla es la vía para corregir un día viejo.
 4. UI recomendada: grilla tipo hoja de cálculo — **filas = alumnos, columnas = fechas** — para marcar rápido.
 5. Métrica por alumno: `presentes / total sesiones = % asistencia`.
+6. Una sesión cerrada deja de ser editable: las casillas se atenúan y el servidor rechaza el marcado.
 
 ### 4.3 Notas finales
 - El instructor ingresa **una sola nota final** por alumno al terminar el trimestre → `matriculas.nota_final`.
+- Escala **0 a 15**: la nota máxima de un laboratorio es 15 puntos.
 - Sin calificaciones por práctica.
+- Se capturan de una sola pasada para toda la sección, y solo se escriben las filas cuyo valor cambió.
 
 ---
 
@@ -202,5 +205,5 @@ supabase/
 3. [x] Auth y roles (admin / instructor)
 4. [x] CRUD de admin (laboratorios, cuentas de instructores)
 5. [x] Secciones del instructor + generación de QR de registro
-6. [ ] Registro público por QR, marcado de asistencia, notas finales
+6. [x] Registro público por QR, marcado de asistencia, notas finales
 7. [ ] Reportes Excel (modos A/B) + preview + envío por correo
