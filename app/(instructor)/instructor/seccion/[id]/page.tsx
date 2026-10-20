@@ -1,15 +1,16 @@
+import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import { FiArrowLeft } from 'react-icons/fi'
 import { requireRol } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
-import GrillaAsistencia, {
-  type AlumnoAsistencia,
-  type SesionAsistencia,
-} from './grilla'
+import EspacioSeccion from './seccion-tabs'
+import type { AlumnoNota } from './notas'
+import type { SesionAsistencia } from './grilla'
 
 // La sesión y los datos cambian por request: se corta el prerender.
 export const instant = false
 
-export const metadata = { title: 'Asistencia' }
+export const metadata = { title: 'Sección' }
 
 /**
  * Sin tipos generados de la DB, supabase-js infiere los recursos embebidos
@@ -22,7 +23,7 @@ function aObjeto<T>(valor: T | T[] | null): T | null {
 
 type FilaAsistencia = { matricula_id: number; presente: boolean }
 
-export default async function PaginaAsistencia({
+export default async function PaginaSeccion({
   params,
 }: {
   params: Promise<{ id: string }>
@@ -49,7 +50,7 @@ export default async function PaginaAsistencia({
   const [{ data: matriculas }, { data: sesiones }] = await Promise.all([
     supabase
       .from('matriculas')
-      .select('id, numero_cuenta, nombre')
+      .select('id, numero_cuenta, nombre, nota_final')
       .eq('seccion_id', seccionId)
       .order('nombre', { ascending: true }),
     // Las asistencias vienen embebidas en su sesión: una consulta en vez de
@@ -64,10 +65,11 @@ export default async function PaginaAsistencia({
   const laboratorio = aObjeto(seccion.laboratorios)
   const periodo = aObjeto(seccion.periodos)
 
-  const alumnos: AlumnoAsistencia[] = (matriculas ?? []).map((m) => ({
+  const alumnos: AlumnoNota[] = (matriculas ?? []).map((m) => ({
     id: m.id,
     numero_cuenta: m.numero_cuenta,
     nombre: m.nombre,
+    nota_final: m.nota_final as number | null,
   }))
 
   // De cada sesión solo interesan los ids de los presentes: la grilla compara
@@ -84,16 +86,28 @@ export default async function PaginaAsistencia({
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-bold text-[#06065c]">Asistencia</h1>
-        <p className="mt-1 text-sm text-gray-600">
-          {laboratorio?.nombre ?? '—'} · Sección {seccion.grupo}
-          {periodo ? ` · ${periodo.nombre} ${periodo.year}` : ''}
-          {seccion.horario ? ` · ${seccion.horario}` : ''}
-        </p>
+      <header className="space-y-2">
+        <Link
+          href="/instructor"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-[#06065c] hover:underline"
+        >
+          <FiArrowLeft size={15} />
+          Mis secciones
+        </Link>
+
+        <div>
+          <h1 className="text-2xl font-bold text-[#06065c]">
+            Sección {seccion.grupo}
+          </h1>
+          <p className="mt-1 text-sm text-gray-600">
+            {laboratorio?.nombre ?? '—'}
+            {periodo ? ` · ${periodo.nombre} ${periodo.year}` : ''}
+            {seccion.horario ? ` · ${seccion.horario}` : ''}
+          </p>
+        </div>
       </header>
 
-      <GrillaAsistencia
+      <EspacioSeccion
         seccionId={seccionId}
         alumnos={alumnos}
         sesiones={sesionesFinales}

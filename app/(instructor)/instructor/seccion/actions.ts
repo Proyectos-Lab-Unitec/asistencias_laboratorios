@@ -16,8 +16,15 @@ const SIN_PERMISO: EstadoAccion = {
 /** Formato de date de Postgres */
 const RE_FECHA = /^\d{4}-\d{2}-\d{2}$/
 
+/** Fecha local del servidor en formato date de Postgres (YYYY-MM-DD). */
+function fechaLocal(d: Date) {
+  const mes = String(d.getMonth() + 1).padStart(2, '0')
+  const dia = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${mes}-${dia}`
+}
+
 function ruta(seccionId: number) {
-  return `/instructor/asistencia/${seccionId}`
+  return `/instructor/seccion/${seccionId}`
 }
 
 /**
@@ -65,11 +72,17 @@ async function sesionValida(
 }
 
 /**
- * Abre la sesión de un día.
+ * Crea la sesión de un día.
  *
- * La fecha la manda el navegador: es el día local del instructor mientras está
- * en el aula, y calcularla en el servidor equivocaría en despliegues con
- * máquinas en UTC (una clase de las 6 p.m. caería al día siguiente).
+ * El instructor elige la fecha: por defecto es hoy, pero también sirve para
+ * dar de alta un día que se pasó por alto. La fecha la manda el navegador
+ * porque es la hora del aula; si se calculara en el servidor en un despliegue
+ * con máquinas en UTC, una clase de las 6 p.m. caería al día siguiente.
+ *
+ * No se aceptan fechas futuras: una sesión es el registro de una clase que ya
+ * ocurrió, y abrirla de más sería una puerta a marcar asistencia antes de
+ * tiempo. La UI además limita el calendario al día de hoy; acá se repite el
+ * corte con un día de tolerancia por la zona horaria del servidor.
  */
 export async function abrirSesion(
   _previo: EstadoAccion,
@@ -85,6 +98,16 @@ export async function abrirSesion(
     return { ok: false, error: 'Sección no válida.' }
   }
   if (!RE_FECHA.test(fecha)) return { ok: false, error: 'Fecha no válida.' }
+
+  // Comparación lexicográfica: en formato YYYY-MM-DD el orden de cadena es el
+  // orden cronológico.
+  const manana = fechaLocal(new Date(Date.now() + 24 * 60 * 60 * 1000))
+  if (fecha > manana) {
+    return {
+      ok: false,
+      error: 'No se puede crear una sesión para una fecha futura.',
+    }
+  }
 
   const supabase = await createClient()
   if (!(await seccionPropia(supabase, seccionId, instructor.id))) {
@@ -254,5 +277,99 @@ export async function marcarTodosPresentes(
   }
 
   revalidatePath(ruta(sesion.seccion_id))
+  return OK
+}
+
+/**
+ * Guarda las notas finales de la sección de una sola pasada.
+ *
+ * El formulario manda una entrada por alumno (`nota_<id>`). Antes de escribir
+ * se comparan contra lo que ya está en la base y solo se actualizan las que
+ * cambiaron: capturar 30 notas de un salto no son 30 idas y vueltas, y corregir
+ * una sola tampoco mueve las otras 29.
+ */
+export async function guardarNotas(
+  _previo: EstadoAccion,
+  formData: FormData
+): Promise<EstadoAccion> {
+  const instructor = await requiereInstructor()
+  if (!instructor) return SIN_PERMISO
+
+  const seccionId = Number(formData.get('seccion_id'))
+  if (!Number.isInteger(seccionId) || seccionId <= 0) {
+    return { ok: false, error: 'Sección no válida.' }
+  }
+
+  const supabase = await createClient()
+  if (!(await seccionPropia(supabase, seccionId, instructor.id))) {
+    return SIN_PERMISO
+  }
+
+  // El formulario trae otros campos ocultos (los de la server action); solo
+  // nos interesan las entradas de nota.
+  const entradas: { id: number; nota_final: number | null }[] = []
+  for (const [clave, valor] of formData.entries()) {
+    if (!clave.startsWith('nota_')) continue
+
+    const id = Number(clave.slice('nota_'.length))
+    if (!Number.isInteger(id) || id <= 0) continue
+
+    const texto = String(valor).trim()
+    if (texto === '') {
+      // Vacío = sin nota todavía, no un cero.
+      entradas.push({ id, nota_final: null })
+      continue
+    }
+
+    // Escala del laboratorio: 15 puntos como máximo.
+    const nota = Number(texto)
+    if (!Number.isFinite(nota) || nota < 0 || nota > 15) {
+      return {
+        ok: false,
+        error: `La nota debe estar entre 0 y 15 (se recibió «${texto}»).`,
+      }
+    }
+
+    entradas.push({ id, nota_final: nota })
+  }
+
+  if (entradas.length === 0) return OK
+
+  const { data: actuales } = await supabase
+    .from('matriculas')
+    .select('id, nota_final')
+    .eq('seccion_id', seccionId)
+
+  const guardadas = new Map(
+    (actuales ?? []).map((m) => [m.id as number, m.nota_final as number | null])
+  )
+
+  // Solo lo que difiere de lo que ya hay, y solo de alumnos de esta sección:
+  // el id viene del cliente y no alcanza con confiar en él.
+  const cambios = entradas.filter(
+    (e) => guardadas.has(e.id) && guardadas.get(e.id) !== e.nota_final
+  )
+
+  if (cambios.length === 0) return OK
+
+  const resultados = await Promise.all(
+    cambios.map((c) =>
+      supabase
+        .from('matriculas')
+        .update({ nota_final: c.nota_final })
+        .eq('id', c.id)
+        .eq('seccion_id', seccionId)
+    )
+  )
+
+  const fallo = resultados.find((r) => r.error)
+  if (fallo?.error) {
+    return {
+      ok: false,
+      error: `No se pudieron guardar las notas: ${fallo.error.message}`,
+    }
+  }
+
+  revalidatePath(ruta(seccionId))
   return OK
 }

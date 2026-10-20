@@ -1,8 +1,7 @@
 'use client'
 
 import { useActionState, useEffect, useRef, startTransition } from 'react'
-import Link from 'next/link'
-import { FiArrowLeft, FiCheck, FiPlus, FiUsers } from 'react-icons/fi'
+import { FiCheck, FiPlus, FiUsers } from 'react-icons/fi'
 import { InterruptorEstado } from '@/components/ui/interruptor-estado'
 import { CLASE_CELDA, CLASE_FILA } from '@/components/ui/tabla-dato'
 import { ESTADO_INICIAL } from '@/lib/types'
@@ -94,16 +93,33 @@ export default function GrillaAsistencia({
     ESTADO_INICIAL
   )
   const contenedor = useRef<HTMLDivElement>(null)
+  // Día elegido en el formulario de la barra, para llevarle la vista cuando
+  // la sesión se acabe de crear.
+  const fechaAgregada = useRef<string | null>(null)
 
-  // En clase lo que importa es el día de hoy: al abrir, la vista queda scrolleada
-  // al extremo derecho, donde vive la última sesión.
+  // Al abrir la vista va al extremo derecho, donde vive la sesión más reciente.
+  // Pero si se acaba de dar de alta un día pasado, su columna no está ahí: en
+  // ese caso se lleva la vista a la fecha recién agregada.
   useEffect(() => {
     const caja = contenedor.current
-    if (caja) caja.scrollLeft = caja.scrollWidth
+    if (!caja) return
+
+    const objetivo = fechaAgregada.current
+    fechaAgregada.current = null
+
+    const celda = objetivo
+      ? caja.querySelector<HTMLElement>(`[data-fecha="${objetivo}"]`)
+      : null
+
+    if (celda) {
+      celda.scrollIntoView({ block: 'nearest', inline: 'center' })
+      return
+    }
+
+    caja.scrollLeft = caja.scrollWidth
   }, [sesiones.length])
 
   const hoy = fechaIso(new Date())
-  const haySesionHoy = sesiones.some((s) => s.fecha === hoy)
   const error = estado.error ?? estadoAbrir.error ?? estadoTodos.error
 
   // Llamar el dispatch devuelto por useActionState fuera de un transition hace
@@ -117,37 +133,42 @@ export default function GrillaAsistencia({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Link
-          href="/instructor"
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-[#06065c] hover:underline"
+      <div className="flex flex-wrap items-center justify-end gap-3">
+        <p className="text-sm text-gray-500">
+          {alumnos.length} {alumnos.length === 1 ? 'alumno' : 'alumnos'} ·{' '}
+          {sesiones.length} {sesiones.length === 1 ? 'sesión' : 'sesiones'}
+        </p>
+
+        <form
+          action={enviarAbrir}
+          onSubmit={(e) => {
+            const campo =
+              e.currentTarget.querySelector<HTMLInputElement>('input[name="fecha"]')
+            fechaAgregada.current = campo?.value ?? null
+          }}
+          className="flex flex-wrap items-center gap-2"
         >
-          <FiArrowLeft size={15} />
-          Mis secciones
-        </Link>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <p className="text-sm text-gray-500">
-            {alumnos.length} {alumnos.length === 1 ? 'alumno' : 'alumnos'} ·{' '}
-            {sesiones.length} {sesiones.length === 1 ? 'sesión' : 'sesiones'}
-          </p>
-
-          {!haySesionHoy && (
-            <form action={enviarAbrir} className="flex items-center gap-2">
-              <input type="hidden" name="seccion_id" value={seccionId} />
-              <input type="hidden" name="fecha" value={hoy} />
-              <button
-                type="submit"
-                className={CLASE_BOTON}
-                disabled={pendienteAbrir}
-              >
-                <FiPlus size={16} />
-                {pendienteAbrir ? 'Abriendo…' : 'Abrir sesión de hoy'}
-              </button>
-            </form>
-          )}
-        </div>
-      </div>
+          <input type="hidden" name="seccion_id" value={seccionId} />
+          <label htmlFor="fecha-sesion" className="text-sm text-gray-500">
+            Fecha
+          </label>
+          <input
+            id="fecha-sesion"
+            type="date"
+            name="fecha"
+            defaultValue={hoy}
+            max={hoy}
+            className="rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:border-[#0f49b6] focus:outline-2 focus:outline-[#0f49b6]"
+          />
+          <button
+            type="submit"
+            className={CLASE_BOTON}
+            disabled={pendienteAbrir}
+          >
+            <FiPlus size={16} />
+            {pendienteAbrir ? 'Agregando…' : 'Agregar sesión'}
+          </button>
+        </form>      </div>
 
       {error && (
         <p
@@ -189,6 +210,7 @@ export default function GrillaAsistencia({
                   <th
                     key={s.id}
                     scope="col"
+                    data-fecha={s.fecha}
                     className="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide"
                   >
                     {fechaCorta(s.fecha)}

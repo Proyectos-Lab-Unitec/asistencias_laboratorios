@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState, useActionState } from 'react'
 import Link from 'next/link'
 import { QRCodeSVG } from 'qrcode.react'
 import {
-  FiCalendar,
+  FiBook,
   FiCopy,
   FiEdit2,
   FiGrid,
@@ -454,12 +454,12 @@ export default function GestionSecciones({
             <td className={CLASE_CELDA}>
               <div className="flex items-center justify-end gap-2">
                 <Link
-                  href={`/instructor/asistencia/${s.id}`}
+                  href={`/instructor/seccion/${s.id}`}
                   className={`${CLASE_ACCION} text-[#06065c] hover:bg-[#06065c]/10`}
-                  title="Marcar asistencia del día"
+                  title="Abrir la sección: asistencia y notas"
                 >
-                  <FiCalendar size={15} />
-                  Asistencia
+                  <FiBook size={15} />
+                  Sección
                 </Link>
                 <button
                   type="button"
