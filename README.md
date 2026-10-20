@@ -99,7 +99,7 @@ asistencias   : id, sesion_id FK → sesiones,
 3. El alumno ingresa cuenta, nombre, carrera, correo y docente → se inserta en `matriculas` con `origen='qr'`.
 4. Protecciones de la ruta pública: token válido + `registro_abierto = true`, con ventana de validez (primer día) y rate-limiting.
 5. El instructor puede cerrar el registro manualmente (`registro_abierto = false`).
-6. También puede agregar alumnos manualmente (`origen='manual'`).
+6. También puede agregar alumnos manualmente desde la pestaña **Asistencia** del espacio de la sección (`origen='manual'`), pensado para quien llegó sin celular o para corregir un registro equivocado. Van obligatorios cuenta, nombre y docente (el que imprime el reporte); carrera y correo son opcionales porque no aparecen en el Excel.
 
 ### 4.2 Asistencia manual
 1. El instructor abre la **sesión** de un día con un calendario: por defecto hoy, y también puede dar de alta una fecha pasada que se pasó por alto. No se aceptan fechas futuras (`UNIQUE(seccion_id, fecha)`).

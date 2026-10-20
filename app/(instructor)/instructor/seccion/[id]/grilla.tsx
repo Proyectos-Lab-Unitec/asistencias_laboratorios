@@ -1,12 +1,20 @@
 'use client'
 
-import { useActionState, useEffect, useRef, startTransition } from 'react'
-import { FiCheck, FiPlus, FiUsers } from 'react-icons/fi'
+import {
+  useActionState,
+  useEffect,
+  useRef,
+  useState,
+  startTransition,
+} from 'react'
+import { FiCheck, FiPlus, FiUserPlus, FiUsers } from 'react-icons/fi'
+import { BotonesModal, Campo, ModalBase } from '@/components/ui/modal'
 import { InterruptorEstado } from '@/components/ui/interruptor-estado'
 import { CLASE_CELDA, CLASE_FILA } from '@/components/ui/tabla-dato'
 import { ESTADO_INICIAL } from '@/lib/types'
 import {
   abrirSesion,
+  agregarAlumno,
   alternarAsistencia,
   alternarSesion,
   marcarTodosPresentes,
@@ -92,6 +100,7 @@ export default function GrillaAsistencia({
     marcarTodosPresentes,
     ESTADO_INICIAL
   )
+  const [modalAlumno, setModalAlumno] = useState(false)
   const contenedor = useRef<HTMLDivElement>(null)
   // Día elegido en el formulario de la barra, para llevarle la vista cuando
   // la sesión se acabe de crear.
@@ -134,6 +143,15 @@ export default function GrillaAsistencia({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-end gap-3">
+        <button
+          type="button"
+          onClick={() => setModalAlumno(true)}
+          className={CLASE_BOTON}
+        >
+          <FiUserPlus size={16} aria-hidden />
+          Agregar alumno
+        </button>
+
         <p className="text-sm text-gray-500">
           {alumnos.length} {alumnos.length === 1 ? 'alumno' : 'alumnos'} ·{' '}
           {sesiones.length} {sesiones.length === 1 ? 'sesión' : 'sesiones'}
@@ -190,6 +208,14 @@ export default function GrillaAsistencia({
             inscriban el primer día. En cuanto se registren, aparecerán acá para
             marcar su asistencia.
           </p>
+          <button
+            type="button"
+            onClick={() => setModalAlumno(true)}
+            className={`${CLASE_BOTON} mt-5`}
+          >
+            <FiUserPlus size={16} aria-hidden />
+            Agregar alumno a mano
+          </button>
         </div>
       ) : (
         <div
@@ -343,6 +369,132 @@ export default function GrillaAsistencia({
           marcar.
         </p>
       )}
+
+      {modalAlumno && (
+        <ModalBase
+          titulo="Agregar alumno"
+          ancho="max-w-lg"
+          onCerrar={() => setModalAlumno(false)}
+        >
+          <FormularioAlumno
+            seccionId={seccionId}
+            onExito={() => setModalAlumno(false)}
+            onCancelar={() => setModalAlumno(false)}
+          />
+        </ModalBase>
+      )}
     </div>
+  )
+}
+
+const VACIOS_ALUMNO = {
+  numero_cuenta: '',
+  nombre: '',
+  docente: '',
+  carrera: '',
+  correo: '',
+}
+
+/**
+ * Alta manual de un alumno.
+ *
+ * Es el mismo formulario que el público de `/registro/[token]`, salvo que acá
+ * manda el instructor y no hace falta token: carrera y correo quedan
+ * opcionales porque no alimentan el reporte de Excel.
+ *
+ * El form vive dentro del modal, y el modal solo se monta cuando está abierto;
+ * por eso su `useActionState` arranca limpio en cada alta y el `estado.ok`
+ * resultante no cierra una ventana anterior por accidente.
+ */
+function FormularioAlumno({
+  seccionId,
+  onExito,
+  onCancelar,
+}: {
+  seccionId: number
+  onExito: () => void
+  onCancelar: () => void
+}) {
+  const [estado, enviar, pendiente] = useActionState(
+    agregarAlumno,
+    ESTADO_INICIAL
+  )
+  const [campos, setCampos] = useState(VACIOS_ALUMNO)
+
+  useEffect(() => {
+    if (estado.ok) onExito()
+  }, [estado.ok, onExito])
+
+  const cambiar =
+    (clave: keyof typeof VACIOS_ALUMNO) => (valor: string) =>
+      setCampos((previo) => ({ ...previo, [clave]: valor }))
+
+  return (
+    <form action={enviar} className="space-y-4">
+      <input type="hidden" name="seccion_id" value={seccionId} />
+
+      <Campo
+        label="Número de cuenta"
+        name="numero_cuenta"
+        valor={campos.numero_cuenta}
+        onChange={cambiar('numero_cuenta')}
+        disabled={pendiente}
+        requerido
+        maxLength={20}
+      />
+
+      <Campo
+        label="Nombre completo"
+        name="nombre"
+        valor={campos.nombre}
+        onChange={cambiar('nombre')}
+        disabled={pendiente}
+        requerido
+        maxLength={120}
+      />
+
+      <Campo
+        label="Docente"
+        name="docente"
+        valor={campos.docente}
+        onChange={cambiar('docente')}
+        placeholder="Mtra. Ana Ruiz"
+        disabled={pendiente}
+        requerido
+        maxLength={120}
+      />
+
+      <Campo
+        label="Carrera"
+        name="carrera"
+        valor={campos.carrera}
+        onChange={cambiar('carrera')}
+        disabled={pendiente}
+        maxLength={120}
+      />
+
+      <Campo
+        label="Correo"
+        name="correo"
+        tipo="email"
+        valor={campos.correo}
+        onChange={cambiar('correo')}
+        disabled={pendiente}
+        maxLength={120}
+      />
+
+      {estado.error && (
+        <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
+          {estado.error}
+        </p>
+      )}
+
+      <BotonesModal
+        onCancelar={onCancelar}
+        guardando={pendiente}
+        texto="Agregar alumno"
+        textoGuardando="Agregando..."
+      />
+    </form>
   )
 }

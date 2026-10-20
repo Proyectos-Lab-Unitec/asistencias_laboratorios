@@ -16,6 +16,9 @@ const SIN_PERMISO: EstadoAccion = {
 /** Formato de date de Postgres */
 const RE_FECHA = /^\d{4}-\d{2}-\d{2}$/
 
+/** Mismo corte que usa el registro público: alcanza para descartar typos. */
+const RE_CORREO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
 /** Fecha local del servidor en formato date de Postgres (YYYY-MM-DD). */
 function fechaLocal(d: Date) {
   const mes = String(d.getMonth() + 1).padStart(2, '0')
@@ -368,6 +371,90 @@ export async function guardarNotas(
       ok: false,
       error: `No se pudieron guardar las notas: ${fallo.error.message}`,
     }
+  }
+
+  revalidatePath(ruta(seccionId))
+  return OK
+}
+
+/**
+ * Da de alta un alumno a mano (§4.1.6).
+ *
+ * Es el mismo alta que haría el alumno desde el QR, pero lo dispara el
+ * instructor: sirve para quien llegó sin celular y para corregir un registro
+ * equivocado sin tener que tocar la base.
+ *
+ * El docente va obligatorio porque es el que imprime el reporte de Excel; en
+ * cambio carrera y correo quedan opcionales porque la tabla los permite nulos
+ * y ninguna de las dos columnas aparece en el reporte.
+ */
+export async function agregarAlumno(
+  _previo: EstadoAccion,
+  formData: FormData
+): Promise<EstadoAccion> {
+  const instructor = await requiereInstructor()
+  if (!instructor) return SIN_PERMISO
+
+  const seccionId = Number(formData.get('seccion_id'))
+  const numeroCuenta = String(formData.get('numero_cuenta') ?? '').trim()
+  const nombre = String(formData.get('nombre') ?? '').trim()
+  const docente = String(formData.get('docente') ?? '').trim()
+  const carrera = String(formData.get('carrera') ?? '').trim()
+  const correo = String(formData.get('correo') ?? '').trim()
+
+  if (!Number.isInteger(seccionId) || seccionId <= 0) {
+    return { ok: false, error: 'Sección no válida.' }
+  }
+
+  if (!numeroCuenta) {
+    return { ok: false, error: 'El número de cuenta es obligatorio.' }
+  }
+  if (numeroCuenta.length > 20) {
+    return { ok: false, error: 'El número de cuenta es demasiado largo.' }
+  }
+  if (!nombre) return { ok: false, error: 'El nombre es obligatorio.' }
+  if (nombre.length > 120) {
+    return { ok: false, error: 'El nombre es demasiado largo.' }
+  }
+  if (!docente) return { ok: false, error: 'El docente es obligatorio.' }
+  if (docente.length > 120) {
+    return { ok: false, error: 'El docente es demasiado largo.' }
+  }
+  if (carrera.length > 120) {
+    return { ok: false, error: 'La carrera es demasiado larga.' }
+  }
+  if (correo.length > 120) {
+    return { ok: false, error: 'El correo es demasiado largo.' }
+  }
+  if (correo && !RE_CORREO.test(correo)) {
+    return { ok: false, error: 'El correo no tiene un formato válido.' }
+  }
+
+  const supabase = await createClient()
+  if (!(await seccionPropia(supabase, seccionId, instructor.id))) {
+    return SIN_PERMISO
+  }
+
+  // `origen` documenta cómo entró el alumno: el QR y el alta a mano conviven
+  // en la misma sección y el reporte no distingue entre ambos.
+  const { error } = await supabase.from('matriculas').insert({
+    seccion_id: seccionId,
+    numero_cuenta: numeroCuenta,
+    nombre,
+    docente,
+    carrera: carrera || null,
+    correo: correo || null,
+    origen: 'manual',
+  })
+
+  if (error) {
+    if (error.code === '23505') {
+      return {
+        ok: false,
+        error: 'Ya hay un alumno con ese número de cuenta en esta sección.',
+      }
+    }
+    return { ok: false, error: `No se pudo agregar al alumno: ${error.message}` }
   }
 
   revalidatePath(ruta(seccionId))
