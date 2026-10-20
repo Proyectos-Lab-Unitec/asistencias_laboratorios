@@ -24,7 +24,7 @@ Sistema **interno** para la universidad de manejo de asistencias, inscripciones 
 - Genera **reportes por sección** y **reportes globales** (todas las secciones), con opción de filtrar por el trimestre actual o incluir todos.
 
 ### Instructor
-- Crea y administra **sus secciones** de laboratorio (asignando laboratorio, grupo, horario, docente, periodo).
+- Crea y administra **sus secciones** de laboratorio (asignando laboratorio, grupo, horario, periodo).
 - Genera el **QR/link de registro** (solo válido el primer día) para que los alumnos se inscriban en su sección.
 - **Cierra el registro** de la sección cuando desea.
 - Ingresa las **notas finales** de los alumnos de su sección.
@@ -32,7 +32,7 @@ Sistema **interno** para la universidad de manejo de asistencias, inscripciones 
 - Genera el **reporte Excel de su sección** (preview → descargar → enviar a un correo específico).
 
 ### Alumno (sin cuenta)
-- Escanea el QR el primer día y se registra con: **número de cuenta, nombre, carrera, correo**.
+- Escanea el QR el primer día y se registra con: **número de cuenta, nombre, carrera, correo, docente**.
 
 ---
 
@@ -57,7 +57,6 @@ secciones     : id, laboratorio_id FK → laboratorios,
                 periodo_id FK → periodos,
                 grupo STRING,            -- "001", "002"... (la "sección" de la clase)
                 horario STRING,          -- "07:00-09:00"
-                docente STRING,          -- nombre del docente que da la clase (solo presentación)
                 token_registro UUID UNIQUE,
                 registro_abierto BOOL
 
@@ -65,6 +64,7 @@ INSCRITOS (se crean vía QR o manualmente)
 matriculas    : id, seccion_id FK → secciones,
                 numero_cuenta STRING,
                 nombre STRING, carrera STRING, correo STRING,
+                docente STRING,          -- lo declara el alumno al inscribirse
                 nota_final DECIMAL NULL,
                 origen ('qr'|'manual'),
                 registrado_en TIMESTAMPTZ
@@ -84,7 +84,7 @@ asistencias   : id, sesion_id FK → sesiones,
 
 ### Notas de diseño
 - `numero_cuenta` **no es único globalmente** (el mismo alumno puede aparecer en varias secciones), pero sí **único por sección**.
-- `docente` es un string a propósito (dato de presentación para reportes; no se usa lógica con él).
+- `docente` es un string a propósito (dato de presentación para reportes; no se usa lógica con él). **Vive en `matriculas`, no en `secciones`**: lo declara el alumno cuando se inscribe, porque es el dato que aporta él, mientras que la sección se identifica por su `instructor_id`. Consecuencia para el Excel: la columna DOCENTE se lee por alumno (`matriculas.docente`) y el encabezado del reporte ya no puede mostrar un único docente de toda la sección.
 - `instructor_id` en `secciones` sí es FK: es lo que permite el aislamiento por instructor (RLS) y la columna INSTRUCTOR del reporte.
 - `periodos` usa el nombre de campo `year` (en inglés).
 - Los periodos son fijos Q1–Q4 por año; "trimestre actual" = hoy dentro de `fecha_inicio`..`fecha_fin`.
@@ -96,7 +96,7 @@ asistencias   : id, sesion_id FK → sesiones,
 ### 4.1 Registro por QR (primer día)
 1. Instructor crea la sección → se genera `token_registro` (UUID único).
 2. La app expone una ruta pública `/registro/[token]` que muestra el formulario.
-3. El alumno ingresa cuenta, nombre, carrera, correo → se inserta en `matriculas` con `origen='qr'`.
+3. El alumno ingresa cuenta, nombre, carrera, correo y docente → se inserta en `matriculas` con `origen='qr'`.
 4. Protecciones de la ruta pública: token válido + `registro_abierto = true`, con ventana de validez (primer día) y rate-limiting.
 5. El instructor puede cerrar el registro manualmente (`registro_abierto = false`).
 6. También puede agregar alumnos manualmente (`origen='manual'`).
@@ -142,21 +142,21 @@ ASISTENCIAS (presentes/total) | % ASISTENCIA | NOTA FINAL
 | LABORATORIO ID | `laboratorios.nombre` |
 | NO. CUENTA | `matriculas.numero_cuenta` |
 | SECCION | `secciones.grupo` (la sección de la clase, no del laboratorio) |
-| DOCENTE | `secciones.docente` |
+| DOCENTE | `matriculas.docente` (lo declaró cada alumno) |
 | HORARIO | `secciones.horario` |
 | INSTRUCTOR | `perfiles.nombre` |
 | NOTA FINAL | `matriculas.nota_final` |
 | ASISTENCIAS / % | `sesiones` + `asistencias` |
 
 ### Encabezado del Excel
-El periodo (y demás datos del reporte por sección) va en el **título**, no repetido en cada fila:
+El periodo (y demás datos del reporte por sección) va en el **título**, no repetido en cada fila. Como `docente` es por alumno, el encabezado solo lleva lo que es propio de la sección:
 
 ```
 ┌─────────────────────────────────────────────────────┐
 │ REPORTE DE NOTAS FINALES                            │
 │ Periodo: Q1 2026          Laboratorio: Química 2    │
-│ Seccion: 001              Docente: Mtra. García     │
-│ Horario: 07:00-09:00      Instructor: Ing. López    │
+│ Seccion: 001              Horario: 07:00-09:00      │
+│ Instructor: Ing. López                              │
 ├─────────────────────────────────────────────────────┤
 │ ALUMNO | LABORATORIO ID | NO. CUENTA | ... | NOTA   │
 ```
@@ -201,6 +201,6 @@ supabase/
 2. [x] Tablas en Supabase + políticas RLS (+ seed de periodos Q1–Q4 por año)
 3. [x] Auth y roles (admin / instructor)
 4. [x] CRUD de admin (laboratorios, cuentas de instructores)
-5. [ ] Secciones del instructor + generación de QR de registro
+5. [x] Secciones del instructor + generación de QR de registro
 6. [ ] Registro público por QR, marcado de asistencia, notas finales
 7. [ ] Reportes Excel (modos A/B) + preview + envío por correo

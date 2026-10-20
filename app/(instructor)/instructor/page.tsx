@@ -7,7 +7,7 @@ import type {
   SeccionFila,
 } from '@/lib/types'
 
-// La sesión cambía según el request: se corta el prerender.
+// La sesión cambia según el request: se corta el prerender.
 export const instant = false
 
 export const metadata = { title: 'Mis secciones' }
@@ -34,7 +34,7 @@ export default async function InstructorPage() {
       supabase
         .from('secciones')
         .select(
-          `id, laboratorio_id, periodo_id, grupo, horario, docente,
+          `id, laboratorio_id, periodo_id, grupo, horario,
            registro_abierto, token_registro,
            laboratorios(nombre), periodos(nombre, year)`
         )
@@ -71,7 +71,6 @@ export default async function InstructorPage() {
       periodo: periodo ? `${periodo.nombre} ${periodo.year}` : '—',
       grupo: seccion.grupo,
       horario: seccion.horario,
-      docente: seccion.docente,
       registro_abierto: seccion.registro_abierto,
       token_registro: seccion.token_registro,
       alumnos: alumnosPorSeccion[seccion.id] ?? 0,

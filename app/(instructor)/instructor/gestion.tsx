@@ -71,7 +71,6 @@ function FormularioSeccion({
   const [periodoId, setPeriodoId] = useState(String(inicial?.periodo_id ?? ''))
   const [grupo, setGrupo] = useState(inicial?.grupo ?? '')
   const [horario, setHorario] = useState(inicial?.horario ?? '')
-  const [docente, setDocente] = useState(inicial?.docente ?? '')
 
   useEffect(() => {
     if (estado.ok) onExito()
@@ -148,16 +147,6 @@ function FormularioSeccion({
         valor={horario}
         onChange={setHorario}
         placeholder="Lun y Mié 07:00–09:00"
-        disabled={pendiente}
-        maxLength={120}
-      />
-
-      <Campo
-        label="Docente"
-        name="docente"
-        valor={docente}
-        onChange={setDocente}
-        placeholder="Ing. María López"
         disabled={pendiente}
         maxLength={120}
       />
@@ -345,7 +334,7 @@ export default function GestionSecciones({
     if (!texto) return secciones
     return secciones.filter((s) =>
       normalizar(
-        `${s.laboratorio} ${s.grupo} ${s.periodo} ${s.horario ?? ''} ${s.docente ?? ''}`
+        `${s.laboratorio} ${s.grupo} ${s.periodo} ${s.horario ?? ''}`
       ).includes(texto)
     )
   }, [secciones, busqueda])
@@ -398,7 +387,7 @@ export default function GestionSecciones({
             valor={busqueda}
             onCambio={buscar}
             etiqueta="Buscar sección"
-            placeholder="Buscar por laboratorio, sección o docente"
+            placeholder="Buscar por laboratorio, sección o periodo"
           />
         }
         pie={
@@ -441,9 +430,6 @@ export default function GestionSecciones({
             <td className={CLASE_CELDA}>
               <p className="font-semibold text-gray-900">
                 {s.laboratorio} · Sección {s.grupo}
-              </p>
-              <p className="mt-0.5 text-xs text-gray-500">
-                {s.docente ? `Docente: ${s.docente}` : 'Sin docente asignado'}
               </p>
             </td>
             <td className={CLASE_CELDA}>{s.periodo}</td>

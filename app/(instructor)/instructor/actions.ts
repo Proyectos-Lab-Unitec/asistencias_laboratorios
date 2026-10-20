@@ -16,12 +16,13 @@ type DatosSeccion = {
   periodo_id: number
   grupo: string
   horario: string | null
-  docente: string | null
 }
 
 /**
  * Lee y valida los campos comunes de crear/editar sección.
  * Los ids vienen de <select>, así que llegan como texto.
+ *
+ * El docente no se toca acá: lo declara el alumno cuando se inscribe.
  */
 function leerSeccion(formData: FormData):
   | { datos: DatosSeccion }
@@ -30,7 +31,6 @@ function leerSeccion(formData: FormData):
   const periodoId = Number(formData.get('periodo_id'))
   const grupo = String(formData.get('grupo') ?? '').trim()
   const horario = String(formData.get('horario') ?? '').trim()
-  const docente = String(formData.get('docente') ?? '').trim()
 
   if (!Number.isInteger(laboratorioId) || laboratorioId <= 0) {
     return { error: 'Debes elegir un laboratorio.' }
@@ -41,7 +41,6 @@ function leerSeccion(formData: FormData):
   if (!grupo) return { error: 'La sección es obligatoria.' }
   if (grupo.length > 20) return { error: 'La sección es demasiado larga.' }
   if (horario.length > 120) return { error: 'El horario es demasiado largo.' }
-  if (docente.length > 120) return { error: 'El nombre del docente es demasiado largo.' }
 
   return {
     datos: {
@@ -49,7 +48,6 @@ function leerSeccion(formData: FormData):
       periodo_id: periodoId,
       grupo,
       horario: horario || null,
-      docente: docente || null,
     },
   }
 }

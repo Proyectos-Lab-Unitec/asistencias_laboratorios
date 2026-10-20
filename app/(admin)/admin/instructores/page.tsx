@@ -31,7 +31,7 @@ export default async function InstructoresPage() {
       .order('activo', { ascending: false })
       .order('nombre', { ascending: true }),
     supabase.from('secciones').select(
-      `id, instructor_id, grupo, horario, docente,
+      `id, instructor_id, grupo, horario,
        laboratorios(nombre), periodos(nombre, year)`
     ),
   ])
@@ -45,7 +45,6 @@ export default async function InstructoresPage() {
       id: seccion.id,
       grupo: seccion.grupo,
       horario: seccion.horario,
-      docente: seccion.docente,
       laboratorio: laboratorio?.nombre ?? '—',
       periodo: periodo ? `${periodo.nombre} ${periodo.year}` : '—',
     }

@@ -13,7 +13,7 @@ Two equally primary users (confirmed):
 - **Instructor** — the daily user. University lab instructor who, during class, opens a session for the day and marks attendance for their section's enrolled students, enters one final grade per student at the end of the quarter, and produces their section's Excel report.
 - **Admin** — the oversight user. Manages the instructor accounts and the laboratory catalog (create/edit/deactivate), and produces per-section and global reports filtered by quarter.
 
-A third party, the **student**, is not a user with an account: they interact exactly once, scanning a QR/link on the first day of class to enroll with número de cuenta, nombre, carrera, and correo.
+A third party, the **student**, is not a user with an account: they interact exactly once, scanning a QR/link on the first day of class to enroll with número de cuenta, nombre, carrera, correo, and docente.
 
 ## Product Purpose
 
@@ -36,21 +36,21 @@ Enrollment is section-scoped, not student-scoped: there is no global student tab
 Roles and capabilities (from the confirmed spec at [README.md](README.md), with a near-identical copy at `../README.md`):
 
 - **Admin:** manage instructor accounts (create/edit/deactivate); manage laboratories (create/edit/deactivate — never delete, existing sections point at them); per-section and global reports with "current quarter only" or "all" toggle.
-- **Instructor:** create and manage their own sections (lab, grupo, horario, docente, periodo); generate the first-day QR/registration link; close registration; mark daily attendance; enter one final grade per student; generate their section's Excel report (preview → download → email).
-- **Student (no account):** one-time QR registration form; `origen='qr'`; unique (seccion_id, numero_cuenta) prevents duplicate scans.
+- **Instructor:** create and manage their own sections (lab, grupo, horario, periodo); generate the first-day QR/registration link; close registration; mark daily attendance; enter one final grade per student; generate their section's Excel report (preview → download → email).
+- **Student (no account):** one-time QR registration form declaring número de cuenta, nombre, carrera, correo and docente; `origen='qr'`; unique (seccion_id, numero_cuenta) prevents duplicate scans.
 
 Durable constraints:
 
 - No student accounts, no student login — ever. The only student touchpoint is the public `/registro/[token]` route, protected by valid token + `registro_abierto = true` + rate limiting.
 - No global students table; `seccion_id` is the root of every permission (RLS: instructors see only rows where `seccion.instructor_id = auth.uid()`; admins have full access).
-- Labs are deactivated, never deleted. `docente` is a display string only (no logic on it). `numero_cuenta` is unique per section, not globally. `periodos.year` is spelled in English.
+- Labs are deactivated, never deleted. `docente` is a display string only (no logic on it) and lives on `matriculas`, declared by the student at registration — not on `secciones`, which is identified by its `instructor_id`. `numero_cuenta` is unique per section, not globally. `periodos.year` is spelled in English.
 - One attendance session per section per day (`UNIQUE(seccion_id, fecha)`); one final grade per student; no per-practice grades.
 - Excel has two modes shared by all three report types: A = final grades, B = attendance (presentes/total + % + final grade). Column order and the title-block header format are specified in the README and must be preserved.
 - Spec'd UI direction for attendance: spreadsheet-like grid, rows = students, columns = dates, with "mark all present" then correct.
 
-Implementation state (roadmap as recorded in the app README): Next.js structure, Supabase schema + RLS + seed, auth/roles, and admin CRUD (laboratorios, instructores) are done. Still open: instructor sections + QR generation, public QR registration, attendance marking, final grades, and Excel reports (modes A/B with preview and email).
+Implementation state (roadmap as recorded in the app README): Next.js structure, Supabase schema + RLS + seed, auth/roles, admin CRUD (laboratorios, instructores), instructor sections + QR generation, and public QR registration are done. Still open: attendance marking, final grades, and Excel reports (modes A/B with preview and email).
 
-Stack (recorded from the existing codebase, not open): Next.js 16 App Router + TypeScript, Tailwind CSS 4, Framer Motion, react-icons, Supabase (Postgres + Auth, `@supabase/ssr`), pnpm; Excel and email (Resend or similar) are spec'd but not yet implemented.
+Stack (recorded from the existing codebase, not open): Next.js 16 App Router + TypeScript, Tailwind CSS 4, Framer Motion, react-icons, `qrcode.react`, Supabase (Postgres + Auth, `@supabase/ssr`), pnpm; Excel and email (Resend or similar) are spec'd but not yet implemented.
 
 ## Brand Commitments
 
@@ -62,7 +62,7 @@ Stack (recorded from the existing codebase, not open): Next.js 16 App Router + T
 ## Evidence on Hand
 
 - Full product spec with roles, data model, flows, report column mapping, RLS rules, and roadmap: [README.md](README.md) (this app's copy, one roadmap step ahead) and its near-identical parent copy at `../README.md`.
-- Working code: app routes for login, admin (dashboard, laboratorios, instructores, reportes), instructor (dashboard, reportes), Supabase migrations + seed, server-side auth helpers, dashboard shell.
+- Working code: app routes for login, admin (dashboard, laboratorios, instructores, reportes), instructor (secciones con QR, reportes), the public `/registro/[token]` enrollment route, Supabase migrations + seed, server-side auth helpers, dashboard shell.
 - Assets: `public/UT2.png` (UNITEC logo), `public/fondo2.webp` (background image).
 - **Absent, and future work must not fabricate it:** no DESIGN.md and no documented visual system; no real student/attendance data beyond `supabase/seed.sql` periods; no testimonial, marketing, pricing, or deployment claims; no confirmed email copy or report email templates; no confirmed institution display name beyond "UNITEC".
 

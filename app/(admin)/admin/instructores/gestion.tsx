@@ -182,7 +182,7 @@ function DetalleSecciones({
                 {s.laboratorio} · Sección {s.grupo}
               </p>
               <p className="mt-0.5 text-xs text-gray-500">
-                {[s.periodo, s.horario, s.docente ? `Docente: ${s.docente}` : null]
+                {[s.periodo, s.horario]
                   .filter(Boolean)
                   .join(' · ') || 'Sin datos de horario'}
               </p>

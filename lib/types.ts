@@ -47,7 +47,6 @@ export type Seccion = {
   periodo_id: number
   grupo: string
   horario: string | null
-  docente: string | null
   token_registro: string
   registro_abierto: boolean
   created_at: string
@@ -60,6 +59,8 @@ export type Matricula = {
   nombre: string
   carrera: string | null
   correo: string | null
+  /** Lo declara el alumno al inscribirse; es un dato suyo, no de la sección */
+  docente: string | null
   nota_final: number | null
   origen: OrigenMatricula
   registrado_en: string
@@ -87,7 +88,6 @@ export type SeccionResumen = {
   id: number
   grupo: string
   horario: string | null
-  docente: string | null
   laboratorio: string
   periodo: string
 }
@@ -105,7 +105,6 @@ export type SeccionFila = {
   periodo: string
   grupo: string
   horario: string | null
-  docente: string | null
   registro_abierto: boolean
   token_registro: string
   alumnos: number
