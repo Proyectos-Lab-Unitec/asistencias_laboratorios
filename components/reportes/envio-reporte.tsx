@@ -25,8 +25,11 @@ export default function EnvioReporte({
   configurado,
 }: {
   accion: (previo: EstadoAccion, formData: FormData) => Promise<EstadoAccion>
-  /** Se renderizan como <input type="hidden">. */
-  campos: Record<string, string>
+  /**
+   * Campos ocultos, como pares y no como objeto: los filtros son listas y un
+   * mismo nombre puede repetirse (`seccion` varias veces).
+   */
+  campos: { nombre: string; valor: string }[]
   vacio: boolean
   configurado: boolean
 }) {
@@ -50,8 +53,13 @@ export default function EnvioReporte({
         </p>
       </div>
 
-      {Object.entries(campos).map(([nombre, valor]) => (
-        <input key={nombre} type="hidden" name={nombre} value={valor} />
+      {campos.map((campo, indice) => (
+        <input
+          key={`${campo.nombre}-${indice}`}
+          type="hidden"
+          name={campo.nombre}
+          value={campo.valor}
+        />
       ))}
 
       <div className="flex flex-wrap items-end gap-3">

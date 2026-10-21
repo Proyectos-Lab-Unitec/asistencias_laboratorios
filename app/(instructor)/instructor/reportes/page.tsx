@@ -153,7 +153,10 @@ export default async function InstructorReportesPage({
 
       <EnvioReporte
         accion={enviarReporte}
-        campos={{ seccion: String(seccionId), modo }}
+        campos={[
+          { nombre: 'seccion', valor: String(seccionId) },
+          { nombre: 'modo', valor: modo },
+        ]}
         vacio={vacio}
         configurado={configurado}
       />

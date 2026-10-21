@@ -134,23 +134,134 @@ export function celdasDe(f: FilaReporte, modo: ModoReporte): string[] {
 
 type FilaAsistencia = { matricula_id: number; presente: boolean }
 
-/** Qué filas entran al reporte. `null` = sin filtro. */
+/**
+ * Qué secciones entran al reporte. Los tres son arreglos: vacío = sin filtro.
+ *
+ * Se combinan con AND entre sí (una sección tiene que cumplir clase, periodo y
+ * estar en la lista elegida) y con OR dentro de cada uno.
+ */
 export type FiltroReporte = {
-  /** Una sección concreta; null = todas las visibles para quien pide. */
-  seccionId: number | null
-  /** Un periodo concreto; null = todos. */
-  periodoId: number | null
-  /** Una clase concreta (la que declara el alumno); null = todas. */
-  claseId: number | null
+  /** Secciones concretas; vacío = todas las que cumplan clase y periodo. */
+  seccionIds: number[]
+  /** Periodos concretos; vacío = todos. */
+  periodoIds: number[]
+  /** Clases concretas (la del laboratorio); vacío = todas. */
+  claseIds: number[]
+}
+
+export const FILTRO_VACIO: FiltroReporte = {
+  seccionIds: [],
+  periodoIds: [],
+  claseIds: [],
 }
 
 type SeccionCruda = {
   id: number
   grupo: string | null
   horario: string | null
+  periodo_id: number
   laboratorios: unknown
   periodos: unknown
   perfiles: unknown
+}
+
+/** Una sección ya resuelta, tal como la muestra el selector del admin. */
+export type SeccionDisponible = {
+  id: number
+  laboratorio: string
+  /** Nombre de la clase del laboratorio; respaldo de la columna CLASE. */
+  clase: string
+  grupo: string
+  horario: string
+  periodo: string
+  instructor: string
+  /** Texto listo para el checkbox: "Lab · Sección · Periodo". */
+  etiqueta: string
+}
+
+function claseDelLaboratorio(seccion: SeccionCruda): number | null {
+  const laboratorio = aObjeto(
+    seccion.laboratorios as { clase_id: number | null } | null
+  )
+  return laboratorio?.clase_id ?? null
+}
+
+/**
+ * Secciones visibles para quien pide, ya filtradas por clase y periodo.
+ *
+ * El filtrado se hace en memoria a propósito: la tabla de secciones es chica
+ * (unas decenas de filas) y así se evita pelear con los embeds filtrados de
+ * PostgREST, que no admiten `in` sobre una relación anidada sin cambiar el
+ * select a `!inner`.
+ *
+ * `seccionIds` se aplica acá también, pero la pantalla del admin pide la lista
+ * SIN ese filtro para poder ofrecer todas las opciones del combo actual.
+ */
+export async function cargarSecciones(
+  filtro: FiltroReporte
+): Promise<SeccionDisponible[]> {
+  const supabase = await createClient()
+
+  const { data } = await supabase
+    .from('secciones')
+    .select(
+      'id, grupo, horario, periodo_id, laboratorios(nombre, clase_id, clases(nombre)), periodos(nombre, year), perfiles(nombre)'
+    )
+    .order('id', { ascending: true })
+
+  const lista = (data ?? []) as unknown as SeccionCruda[]
+
+  const filtradas = lista.filter((seccion) => {
+    if (
+      filtro.seccionIds.length > 0 &&
+      !filtro.seccionIds.includes(seccion.id)
+    ) {
+      return false
+    }
+    if (
+      filtro.periodoIds.length > 0 &&
+      !filtro.periodoIds.includes(seccion.periodo_id)
+    ) {
+      return false
+    }
+    if (filtro.claseIds.length > 0) {
+      const claseId = claseDelLaboratorio(seccion)
+      if (claseId === null || !filtro.claseIds.includes(claseId)) return false
+    }
+    return true
+  })
+
+  return filtradas.map((seccion) => {
+    const laboratorio = aObjeto(
+      seccion.laboratorios as { nombre: string; clases: unknown } | null
+    )
+    const claseLaboratorio = laboratorio
+      ? aObjeto(laboratorio.clases as { nombre: string } | null)
+      : null
+    const periodo = aObjeto(
+      seccion.periodos as { nombre: string; year: number } | null
+    )
+    const instructor = aObjeto(seccion.perfiles as { nombre: string } | null)
+
+    const datos: SeccionDisponible = {
+      id: seccion.id,
+      laboratorio: laboratorio?.nombre ?? '—',
+      clase: claseLaboratorio?.nombre ?? '',
+      grupo: seccion.grupo ?? '—',
+      horario: seccion.horario ?? '',
+      periodo: periodo ? `${periodo.nombre} ${periodo.year}` : '—',
+      instructor: instructor?.nombre ?? '—',
+      etiqueta: '',
+    }
+
+    datos.etiqueta = [
+      datos.laboratorio,
+      `Sección ${datos.grupo}`,
+      datos.periodo,
+    ].join(' · ')
+
+    return datos
+  })
 }
 
 type MetaSeccion = {
@@ -163,47 +274,31 @@ type MetaSeccion = {
 }
 
 /**
- * Arma un reporte, de una sección o global.
+ * Arma un reporte a partir de las secciones que cumplen el filtro.
  *
- * Con `seccionId` sale el reporte de esa sección, con su encabezado completo.
- * Sin él sale el global: ahí no hay un laboratorio ni un instructor únicos, así
- * que el bloque de título pasa a describir el alcance (periodo, clase, cuántas
- * secciones y cuántos alumnos).
+ * Con una sola sección sale su encabezado completo; con varias (o ninguna) sale
+ * el global, cuyo título describe el alcance: periodo, clase, cuántas secciones
+ * y cuántos alumnos.
  *
- * La RLS es el límite: un instructor solo ve sus secciones, de modo que su
- * "global" sería su propio conjunto. El alcance global de verdad lo usa la ruta
- * del admin.
+ * La RLS es el límite: un instructor solo ve sus secciones, así que su
+ * "global" sería su propio conjunto. El alcance global lo usa la ruta del
+ * admin.
  */
 export async function cargarReporte(
   filtro: FiltroReporte,
   modo: ModoReporte
 ): Promise<Reporte | null> {
+  const disponibles = await cargarSecciones(filtro)
+  if (disponibles.length === 0) return null
+
   const supabase = await createClient()
-
-  let consulta = supabase
-    .from('secciones')
-    .select(
-      'id, grupo, horario, laboratorios(nombre, clases(nombre)), periodos(nombre, year), perfiles(nombre)'
-    )
-    .order('id', { ascending: true })
-
-  if (filtro.seccionId !== null) consulta = consulta.eq('id', filtro.seccionId)
-  if (filtro.periodoId !== null) {
-    consulta = consulta.eq('periodo_id', filtro.periodoId)
-  }
-
-  const { data: secciones } = await consulta
-  const lista = (secciones ?? []) as unknown as SeccionCruda[]
-
-  if (lista.length === 0) return null
-
-  const ids = lista.map((seccion) => seccion.id)
+  const ids = disponibles.map((seccion) => seccion.id)
 
   const [{ data: matriculas }, { data: sesiones }] = await Promise.all([
     supabase
       .from('matriculas')
       .select(
-        'id, seccion_id, numero_cuenta, nombre, docente, nota_final, seccion_clase, clase_id, clases(nombre)'
+        'id, seccion_id, numero_cuenta, nombre, docente, nota_final, seccion_clase, clases(nombre)'
       )
       .in('seccion_id', ids)
       .order('nombre', { ascending: true }),
@@ -232,26 +327,17 @@ export async function cargarReporte(
     }
   }
 
+  // La clase del laboratorio se guarda como respaldo de la columna CLASE: la
+  // que manda es la que declaró el alumno.
   const meta = new Map<number, MetaSeccion>()
-  for (const seccion of lista) {
-    const laboratorio = aObjeto(
-      seccion.laboratorios as { nombre: string; clases: unknown } | null
-    )
-    const periodo = aObjeto(
-      seccion.periodos as { nombre: string; year: number } | null
-    )
-    const instructor = aObjeto(seccion.perfiles as { nombre: string } | null)
-    const claseLaboratorio = laboratorio
-      ? aObjeto(laboratorio.clases as { nombre: string } | null)
-      : null
-
+  for (const seccion of disponibles) {
     meta.set(seccion.id, {
-      laboratorio: laboratorio?.nombre ?? '',
-      claseLaboratorio: claseLaboratorio?.nombre ?? '',
-      periodo: periodo ? `${periodo.nombre} ${periodo.year}` : '',
-      instructor: instructor?.nombre ?? '',
-      grupo: seccion.grupo ?? '',
-      horario: seccion.horario ?? '',
+      laboratorio: seccion.laboratorio,
+      claseLaboratorio: seccion.clase,
+      periodo: seccion.periodo,
+      instructor: seccion.instructor,
+      grupo: seccion.grupo,
+      horario: seccion.horario,
     })
   }
 
@@ -260,15 +346,6 @@ export async function cargarReporte(
     const seccionId = matricula.seccion_id as number
     const datos = meta.get(seccionId)
     if (!datos) continue
-
-    // El filtro por clase va sobre lo que declaró el alumno, no sobre el
-    // laboratorio: un mismo laboratorio puede tener clases distintas.
-    if (
-      filtro.claseId !== null &&
-      (matricula.clase_id as number | null) !== filtro.claseId
-    ) {
-      continue
-    }
 
     const clase = aObjeto(
       matricula.clases as unknown as { nombre: string } | null
@@ -293,8 +370,8 @@ export async function cargarReporte(
   }
 
   // ---------- Bloque de título ----------
-  if (filtro.seccionId !== null && lista.length === 1) {
-    const datos = meta.get(lista[0].id)!
+  if (disponibles.length === 1) {
+    const datos = disponibles[0]
 
     return {
       modo,
@@ -313,33 +390,57 @@ export async function cargarReporte(
     }
   }
 
-  let etiquetaClase = 'Todas'
-  if (filtro.claseId !== null) {
-    const { data: clase } = await supabase
-      .from('clases')
-      .select('nombre')
-      .eq('id', filtro.claseId)
-      .maybeSingle()
-    etiquetaClase = clase?.nombre ?? '—'
-  }
-
-  const periodos = [...new Set(lista.map((s) => meta.get(s.id)?.periodo ?? ''))]
-  const etiquetaPeriodo =
-    filtro.periodoId === null ? 'Todos' : periodos[0] || 'Todos'
-
   return {
     modo,
     alcance: 'global',
     titulo: tituloDe(modo),
     encabezado: [
-      { etiqueta: 'Periodo', valor: etiquetaPeriodo },
-      { etiqueta: 'Clase', valor: etiquetaClase },
-      { etiqueta: 'Secciones', valor: String(lista.length) },
+      {
+        etiqueta: 'Periodo',
+        valor: etiquetaDeConteo(
+          filtro.periodoIds.length,
+          [...new Set(disponibles.map((s) => s.periodo))],
+          'periodos',
+          'Todos'
+        ),
+      },
+      {
+        etiqueta: 'Clase',
+        valor: await etiquetaDeClases(filtro.claseIds),
+      },
+      { etiqueta: 'Secciones', valor: String(disponibles.length) },
       { etiqueta: 'Alumnos', valor: String(filas.length) },
     ],
     columnas: columnasDe(modo),
     filas,
   }
+}
+
+/** "Todos" / el nombre / "2 periodos". */
+function etiquetaDeConteo(
+  cantidad: number,
+  valores: string[],
+  plural: string,
+  ninguno: string
+): string {
+  if (cantidad === 0) return ninguno
+  if (cantidad === 1) return valores[0] || ninguno
+  return `${cantidad} ${plural}`
+}
+
+/** "Todas" / "Física 1" / "2 clases". */
+async function etiquetaDeClases(claseIds: number[]): Promise<string> {
+  if (claseIds.length === 0) return 'Todas'
+  if (claseIds.length > 1) return `${claseIds.length} clases`
+
+  const supabase = await createClient()
+  const { data } = await supabase
+    .from('clases')
+    .select('nombre')
+    .eq('id', claseIds[0])
+    .maybeSingle()
+
+  return data?.nombre ?? '—'
 }
 
 /**
@@ -354,32 +455,36 @@ export async function cargarReporteSeccion(
   modo: ModoReporte
 ): Promise<Reporte | null> {
   return cargarReporte(
-    { seccionId, periodoId: null, claseId: null },
+    { seccionIds: [seccionId], periodoIds: [], claseIds: [] },
     modo
   )
 }
 
-/** Un id de filtro: vacío, 0 o basura equivalen a "sin filtro". */
-function idDe(valor: string | null): number | null {
-  const numero = Number.parseInt(valor ?? '', 10)
-  return Number.isInteger(numero) && numero > 0 ? numero : null
+/** Un id de filtro: vacío, 0 o basura se descartan. */
+function idsDe(valores: string[]): number[] {
+  return valores
+    .map((valor) => Number.parseInt(valor, 10))
+    .filter((numero) => Number.isInteger(numero) && numero > 0)
 }
 
 /** Filtros que llegan por la URL (descarga del Excel). */
 export function filtroDesdeParametros(params: URLSearchParams): FiltroReporte {
   return {
-    seccionId: idDe(params.get('seccion')),
-    periodoId: idDe(params.get('periodo')),
-    claseId: idDe(params.get('clase')),
+    seccionIds: idsDe(params.getAll('seccion')),
+    periodoIds: idsDe(params.getAll('periodo')),
+    claseIds: idsDe(params.getAll('clase')),
   }
 }
 
 /** Filtros que llegan por el formulario (envío por correo). */
 export function filtroDesdeFormData(formData: FormData): FiltroReporte {
+  const de = (clave: string) =>
+    idsDe(formData.getAll(clave).map((valor) => String(valor)))
+
   return {
-    seccionId: idDe(formData.get('seccion')?.toString() ?? null),
-    periodoId: idDe(formData.get('periodo')?.toString() ?? null),
-    claseId: idDe(formData.get('clase')?.toString() ?? null),
+    seccionIds: de('seccion'),
+    periodoIds: de('periodo'),
+    claseIds: de('clase'),
   }
 }
 
@@ -396,10 +501,7 @@ export function reporteAHtml(reporte: Reporte): string {
     )}</td>`
 
   const filas = reporte.filas
-    .map(
-      (f) =>
-        `<tr>${celdasDe(f, reporte.modo).map(celda).join('')}</tr>`
-    )
+    .map((f) => `<tr>${celdasDe(f, reporte.modo).map(celda).join('')}</tr>`)
     .join('')
 
   const encabezado = reporte.encabezado
