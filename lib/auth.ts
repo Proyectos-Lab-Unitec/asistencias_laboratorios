@@ -93,3 +93,13 @@ export async function requiereAdmin(): Promise<UsuarioActual | null> {
   if (!usuario || usuario.rol !== 'admin') return null
   return usuario
 }
+
+/**
+ * Para rutas que sirven a los dos roles por igual (la descarga del Excel).
+ *
+ * Evita encadenar `requiereAdmin() ?? requiereInstructor()`, que leería la
+ * sesión y el perfil dos veces para el mismo request.
+ */
+export async function requiereUsuario(): Promise<UsuarioActual | null> {
+  return leerUsuario()
+}

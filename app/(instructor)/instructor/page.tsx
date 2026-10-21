@@ -1,5 +1,7 @@
+import { headers } from 'next/headers'
 import { requireRol } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
+import { aObjeto } from '@/lib/utils'
 import GestionSecciones from './gestion'
 import type {
   LaboratorioOpcion,
@@ -11,16 +13,6 @@ import type {
 export const instant = false
 
 export const metadata = { title: 'Mis secciones' }
-
-/**
- * Sin tipos generados de la DB, supabase-js infiere los recursos embebidos
- * como arreglo aunque la relación sea many-to-one. Lo desenvolvemos a mano.
- * Mismo helper que usa el admin en instructores/page.tsx.
- */
-function aObjeto<T>(valor: T | T[] | null): T | null {
-  if (valor == null) return null
-  return Array.isArray(valor) ? (valor[0] ?? null) : valor
-}
 
 export default async function InstructorPage() {
   const usuario = await requireRol('instructor')
@@ -86,6 +78,18 @@ export default async function InstructorPage() {
     etiqueta: `${p.nombre} ${p.year}`,
   }))
 
+  // El QR necesita una URL absoluta. Se arma desde el request y no con
+  // window.location: así funciona también detrás de un proxy y el modal no
+  // tiene que esperar a montarse para saber la dirección.
+  const cabeceras = await headers()
+  const host = cabeceras.get('host') ?? 'localhost:3000'
+  const protocolo =
+    cabeceras.get('x-forwarded-proto') ??
+    (host.startsWith('localhost') || host.startsWith('127.0.0.1')
+      ? 'http'
+      : 'https')
+  const origen = `${protocolo}://${host}`
+
   return (
     <div className="space-y-6">
       <header>
@@ -100,6 +104,7 @@ export default async function InstructorPage() {
         secciones={filas}
         laboratorios={opcionesLaboratorios}
         periodos={opcionesPeriodos}
+        origen={origen}
       />
     </div>
   )

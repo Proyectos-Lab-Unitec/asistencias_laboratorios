@@ -37,15 +37,12 @@ import {
   type PeriodoOpcion,
   type SeccionFila,
 } from '@/lib/types'
+import { plural } from '@/lib/utils'
 
 type AccionForm = (
   previo: EstadoAccion,
   formData: FormData
 ) => Promise<EstadoAccion>
-
-function plural(n: number, uno: string, varios: string) {
-  return `${n} ${n === 1 ? uno : varios}`
-}
 
 /** Mismo estilo de campo que Campo usa para sus inputs, para los <select>. */
 const CLASE_SELECT =
@@ -225,19 +222,14 @@ function ConfirmarEliminacion({
 
 function ModalQR({
   seccion,
+  origen,
   onCerrar,
 }: {
   seccion: SeccionFila
+  origen: string
   onCerrar: () => void
 }) {
-  // El modal solo se monta tras un clic, así que window ya existe; el effect
-  // deja el primer render sin parpadeo de URL vacía.
-  const [origen, setOrigen] = useState('')
   const [copiado, setCopiado] = useState(false)
-
-  useEffect(() => {
-    setOrigen(window.location.origin)
-  }, [])
 
   const enlace = `${origen}/registro/${seccion.token_registro}`
 
@@ -262,17 +254,13 @@ function ModalQR({
       </p>
 
       <div className="mt-4 flex flex-col items-center gap-3 rounded-xl border border-gray-200 bg-white px-5 py-6">
-        {origen ? (
-          <QRCodeSVG
-            value={enlace}
-            size={196}
-            bgColor="#ffffff"
-            fgColor="#06065c"
-            level="M"
-          />
-        ) : (
-          <div className="h-[196px] w-[196px] animate-pulse rounded-lg bg-gray-100" />
-        )}
+        <QRCodeSVG
+          value={enlace}
+          size={196}
+          bgColor="#ffffff"
+          fgColor="#06065c"
+          level="M"
+        />
         <p className="max-w-xs text-center text-xs text-gray-500">
           Los alumnos lo escanean el primer día para inscribirse. Ciérralo desde
           la tabla cuando termine el registro.
@@ -295,7 +283,6 @@ function ModalQR({
         <button
           type="button"
           onClick={copiar}
-          disabled={!origen}
           className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:opacity-50"
         >
           <FiCopy size={15} />
@@ -319,10 +306,13 @@ export default function GestionSecciones({
   secciones,
   laboratorios,
   periodos,
+  origen,
 }: {
   secciones: SeccionFila[]
   laboratorios: LaboratorioOpcion[]
   periodos: PeriodoOpcion[]
+  /** Origen absoluto del sitio, para armar el enlace del QR en el servidor. */
+  origen: string
 }) {
   const [modalNuevo, setModalNuevo] = useState(false)
   const [editando, setEditando] = useState<SeccionFila | null>(null)
@@ -518,7 +508,9 @@ export default function GestionSecciones({
         </ModalBase>
       )}
 
-      {qr && <ModalQR seccion={qr} onCerrar={() => setQr(null)} />}
+      {qr && (
+        <ModalQR seccion={qr} origen={origen} onCerrar={() => setQr(null)} />
+      )}
 
       {eliminando && (
         <ModalBase titulo="Eliminar sección" onCerrar={() => setEliminando(null)}>

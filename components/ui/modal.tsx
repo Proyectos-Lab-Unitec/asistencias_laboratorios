@@ -89,11 +89,11 @@ export function Campo({
     'w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-black outline-none transition focus:border-[#0f49b6] focus:ring-2 focus:ring-[#0f49b6] disabled:bg-gray-100'
 
   return (
-    <div>
-      <label className="mb-1 block text-sm font-medium text-gray-700">
+    <label className="block">
+      <span className="mb-1 block text-sm font-medium text-gray-700">
         {label}
         {requerido && <span className="text-red-500"> *</span>}
-      </label>
+      </span>
       {children ?? (
         <input
           type={tipo}
@@ -108,7 +108,7 @@ export function Campo({
           className={clase}
         />
       )}
-    </div>
+    </label>
   )
 }
 

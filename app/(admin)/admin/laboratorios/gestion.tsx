@@ -39,6 +39,7 @@ import {
   type Laboratorio,
   type SeccionResumen,
 } from '@/lib/types'
+import { plural } from '@/lib/utils'
 
 type AccionForm = (
   previo: EstadoAccion,
@@ -47,10 +48,6 @@ type AccionForm = (
 
 const CLASE_SELECT =
   'w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-black outline-none transition focus:border-[#0f49b6] focus:ring-2 focus:ring-[#0f49b6] disabled:bg-gray-100'
-
-function plural(n: number, palabra: string) {
-  return `${n} ${palabra}${n === 1 ? '' : 'es'}`
-}
 
 function FormularioLaboratorio({
   accion,
@@ -237,7 +234,8 @@ function ConfirmarEliminacion({
         {secciones > 0
           ? `Se eliminarán también ${plural(
               secciones,
-              'sección'
+              'sección',
+              'secciones'
             )} que maneja, con sus matrículas, sesiones y asistencias.`
           : 'Este laboratorio no tiene secciones asociadas, así que solo se borra el registro.'}{' '}
         Esta acción no se puede deshacer.
@@ -286,7 +284,7 @@ function ConfirmarEliminacionMultiple({
 
       <p className="text-sm text-gray-600">
         ¿Estás seguro de que deseas eliminar{' '}
-        <strong>{plural(seleccionados.length, 'laboratorio')}</strong>?
+        <strong>{plural(seleccionados.length, 'laboratorio', 'laboratorios')}</strong>?
       </p>
 
       <ul className="mt-3 max-h-40 overflow-y-auto rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700">
@@ -373,14 +371,13 @@ export default function GestionLaboratorios({
       previo.includes(id) ? previo.filter((x) => x !== id) : [...previo, id]
     )
 
-  // Si un borrado deja ids que ya no existen, la barra seguiría contándolos.
-  useEffect(() => {
-    const existentes = new Set(laboratorios.map((lab) => lab.id))
-    setSeleccionados((previo) => previo.filter((id) => existentes.has(id)))
-  }, [laboratorios])
+  // La selección se deriva en vez de sincronizarse con un effect: si un
+  // borrado deja ids que ya no existen, no llegan ni a la barra ni al modal.
+  const idsExistentes = new Set(laboratorios.map((lab) => lab.id))
+  const seleccionValida = seleccionados.filter((id) => idsExistentes.has(id))
 
   const seleccionadosLab = laboratorios.filter((lab) =>
-    seleccionados.includes(lab.id)
+    seleccionValida.includes(lab.id)
   )
 
   const activos = laboratorios.filter((lab) => lab.activo).length
@@ -417,7 +414,7 @@ export default function GestionLaboratorios({
       )}
 
       <BarraSeleccion
-        cantidad={seleccionados.length}
+        cantidad={seleccionValida.length}
         onEliminar={() => setEliminandoVarios(true)}
         onLimpiar={() => setSeleccionados([])}
       />
@@ -451,7 +448,7 @@ export default function GestionLaboratorios({
             nodo: (
               <CasillaCabecera
                 visibles={visibles.map((lab) => lab.id)}
-                seleccionados={seleccionados}
+                seleccionados={seleccionValida}
                 onCambio={setSeleccionados}
               />
             ),
@@ -484,7 +481,7 @@ export default function GestionLaboratorios({
             <td className={`${CLASE_CELDA} w-10`}>
               <CasillaFila
                 id={lab.id}
-                marcada={seleccionados.includes(lab.id)}
+                marcada={seleccionValida.includes(lab.id)}
                 onCambio={alternarSeleccion}
                 etiqueta={lab.nombre}
               />

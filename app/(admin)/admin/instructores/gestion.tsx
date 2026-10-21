@@ -33,14 +33,10 @@ import {
 } from '@/components/ui/tabla-dato'
 import {
   ESTADO_INICIAL,
-  type EstadoAccion,
   type Perfil,
   type SeccionResumen,
 } from '@/lib/types'
-
-function plural(n: number, palabra: string) {
-  return `${n} ${palabra}${n === 1 ? '' : 's'}`
-}
+import { plural } from '@/lib/utils'
 
 function FormularioCrear({
   onExito,
@@ -166,10 +162,8 @@ function FormularioEditar({
 }
 
 function DetalleSecciones({
-  cuenta,
   secciones,
 }: {
-  cuenta: Perfil
   secciones: SeccionResumen[]
 }) {
   return (
@@ -227,7 +221,7 @@ function ConfirmarEliminacion({
 
       <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
         {secciones > 0
-          ? `Se eliminarán también ${plural(secciones, 'sección')} que maneja, con sus matrículas, sesiones y asistencias.`
+          ? `Se eliminarán también ${plural(secciones, 'sección', 'secciones')} que maneja, con sus matrículas, sesiones y asistencias.`
           : 'La cuenta no tiene secciones asignadas, así que solo se borra el registro.'}{' '}
         Esta acción no se puede deshacer.
       </p>
@@ -275,7 +269,7 @@ function ConfirmarEliminacionMultiple({
 
       <p className="text-sm text-gray-600">
         ¿Estás seguro de que deseas eliminar{' '}
-        <strong>{plural(seleccionadas.length, 'cuenta')}</strong>?
+        <strong>{plural(seleccionadas.length, 'cuenta', 'cuentas')}</strong>?
       </p>
 
       <ul className="mt-3 max-h-40 overflow-y-auto rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700">
@@ -351,14 +345,13 @@ export default function GestionInstructores({
       previo.includes(id) ? previo.filter((x) => x !== id) : [...previo, id]
     )
 
-  // Si un borrado deja ids que ya no existen, la barra seguiría contándolos.
-  useEffect(() => {
-    const existentes = new Set(cuentas.map((cuenta) => cuenta.id))
-    setSeleccionados((previo) => previo.filter((id) => existentes.has(id)))
-  }, [cuentas])
+  // La selección se deriva en vez de sincronizarse con un effect: si un
+  // borrado deja ids que ya no existen, no llegan ni a la barra ni al modal.
+  const idsExistentes = new Set(cuentas.map((cuenta) => cuenta.id))
+  const seleccionValida = seleccionados.filter((id) => idsExistentes.has(id))
 
   const seleccionadas = cuentas.filter((cuenta) =>
-    seleccionados.includes(cuenta.id)
+    seleccionValida.includes(cuenta.id)
   )
 
   const activas = cuentas.filter((c) => c.activo).length
@@ -371,8 +364,8 @@ export default function GestionInstructores({
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-gray-500">
-          {plural(cuentas.length, 'cuenta')} · {activas} activa
-          {activas === 1 ? '' : 's'} · {plural(totalSecciones, 'sección')} en
+          {plural(cuentas.length, 'cuenta', 'cuentas')} · {activas} activa
+          {activas === 1 ? '' : 's'} · {plural(totalSecciones, 'sección', 'secciones')} en
           total
         </p>
         <button
@@ -386,7 +379,7 @@ export default function GestionInstructores({
       </div>
 
       <BarraSeleccion
-        cantidad={seleccionados.length}
+        cantidad={seleccionValida.length}
         onEliminar={() => setEliminandoVarias(true)}
         onLimpiar={() => setSeleccionados([])}
       />
@@ -420,7 +413,7 @@ export default function GestionInstructores({
             nodo: (
               <CasillaCabecera
                 visibles={visibles.map((cuenta) => cuenta.id)}
-                seleccionados={seleccionados}
+                seleccionados={seleccionValida}
                 onCambio={setSeleccionados}
               />
             ),
@@ -453,7 +446,7 @@ export default function GestionInstructores({
               <td className={`${CLASE_CELDA} w-10`}>
                 <CasillaFila
                   id={cuenta.id}
-                  marcada={seleccionados.includes(cuenta.id)}
+                  marcada={seleccionValida.includes(cuenta.id)}
                   onCambio={alternarSeleccion}
                   etiqueta={cuenta.nombre}
                 />
@@ -545,7 +538,6 @@ export default function GestionInstructores({
           ancho="max-w-lg"
         >
           <DetalleSecciones
-            cuenta={verSecciones}
             secciones={seccionesPorInstructor[verSecciones.id] ?? []}
           />
         </ModalBase>

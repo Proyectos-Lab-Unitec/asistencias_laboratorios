@@ -14,7 +14,7 @@ import {
   FiFileText,
   FiBookOpen,
 } from 'react-icons/fi'
-import type { IconType } from 'react-icons'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 
 // Mapa de iconos: los layouts pasan solo el nombre (serializable),
@@ -84,9 +84,11 @@ export function DashboardShell({
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between px-3 py-5">
         <div className="flex min-w-0 items-center gap-3">
-          <img
+          <Image
             src="/UT2.png"
             alt="Logo"
+            width={40}
+            height={40}
             className="h-10 w-10 shrink-0 rounded-lg object-cover"
           />
           <div className="min-w-0">

@@ -31,15 +31,12 @@ import {
   TablaDato,
 } from '@/components/ui/tabla-dato'
 import { ESTADO_INICIAL, type Clase, type EstadoAccion } from '@/lib/types'
+import { plural } from '@/lib/utils'
 
 type AccionForm = (
   previo: EstadoAccion,
   formData: FormData
 ) => Promise<EstadoAccion>
-
-function plural(n: number, palabra: string) {
-  return `${n} ${palabra}${n === 1 ? '' : 'es'}`
-}
 
 function FormularioClase({
   accion,
@@ -122,7 +119,8 @@ function ConfirmarEliminacion({
         {usos > 0
           ? `${plural(
               usos,
-              'laboratorio'
+              'laboratorio',
+              'laboratorios'
             )} que usan esta clase se quedan, pero sin clase asignada.`
           : 'Ningún laboratorio la está usando.'}{' '}
         Las matrículas que la declararon también pierden la referencia. Esta
@@ -172,7 +170,7 @@ function ConfirmarEliminacionMultiple({
 
       <p className="text-sm text-gray-600">
         ¿Estás seguro de que deseas eliminar{' '}
-        <strong>{plural(seleccionadas.length, 'clase')}</strong>?
+        <strong>{plural(seleccionadas.length, 'clase', 'clases')}</strong>?
       </p>
 
       <ul className="mt-3 max-h-40 overflow-y-auto rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700">
@@ -250,14 +248,13 @@ export default function GestionClases({
       previo.includes(id) ? previo.filter((x) => x !== id) : [...previo, id]
     )
 
-  // Si un borrado deja ids que ya no existen, la barra seguiría contándolos.
-  useEffect(() => {
-    const existentes = new Set(clases.map((clase) => clase.id))
-    setSeleccionados((previo) => previo.filter((id) => existentes.has(id)))
-  }, [clases])
+  // La selección se deriva en vez de sincronizarse con un effect: si un
+  // borrado deja ids que ya no existen, no llegan ni a la barra ni al modal.
+  const idsExistentes = new Set(clases.map((clase) => clase.id))
+  const seleccionValida = seleccionados.filter((id) => idsExistentes.has(id))
 
   const seleccionadas = clases.filter((clase) =>
-    seleccionados.includes(clase.id)
+    seleccionValida.includes(clase.id)
   )
 
   const activas = clases.filter((clase) => clase.activo).length
@@ -279,7 +276,7 @@ export default function GestionClases({
       </div>
 
       <BarraSeleccion
-        cantidad={seleccionados.length}
+        cantidad={seleccionValida.length}
         onEliminar={() => setEliminandoVarias(true)}
         onLimpiar={() => setSeleccionados([])}
       />
@@ -313,7 +310,7 @@ export default function GestionClases({
             nodo: (
               <CasillaCabecera
                 visibles={visibles.map((clase) => clase.id)}
-                seleccionados={seleccionados}
+                seleccionados={seleccionValida}
                 onCambio={setSeleccionados}
               />
             ),
@@ -347,7 +344,7 @@ export default function GestionClases({
             <td className={`${CLASE_CELDA} w-10`}>
               <CasillaFila
                 id={clase.id}
-                marcada={seleccionados.includes(clase.id)}
+                marcada={seleccionValida.includes(clase.id)}
                 onCambio={alternarSeleccion}
                 etiqueta={clase.nombre}
               />

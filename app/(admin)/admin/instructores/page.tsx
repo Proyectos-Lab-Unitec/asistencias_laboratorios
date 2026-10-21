@@ -1,5 +1,6 @@
 import { requireRol } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
+import { aObjeto } from '@/lib/utils'
 import GestionInstructores from './gestion'
 import type { SeccionResumen } from '@/lib/types'
 
@@ -7,15 +8,6 @@ import type { SeccionResumen } from '@/lib/types'
 export const instant = false
 
 export const metadata = { title: 'Instructores' }
-
-/**
- * Sin tipos generados de la DB, supabase-js infiere los recursos embebidos
- * como arreglo aunque la relación sea many-to-one. Lo desenvolvemos a mano.
- */
-function aObjeto<T>(valor: T | T[] | null): T | null {
-  if (valor == null) return null
-  return Array.isArray(valor) ? (valor[0] ?? null) : valor
-}
 
 export default async function InstructoresPage() {
   await requireRol('admin')

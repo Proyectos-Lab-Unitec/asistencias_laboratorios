@@ -4,6 +4,7 @@ import { FiArrowLeft } from 'react-icons/fi'
 import { requireRol } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import type { ClaseOpcion } from '@/lib/types'
+import { aObjeto } from '@/lib/utils'
 import EspacioSeccion from './seccion-tabs'
 import type { AlumnoNota } from './notas'
 import type { SesionAsistencia } from './grilla'
@@ -12,15 +13,6 @@ import type { SesionAsistencia } from './grilla'
 export const instant = false
 
 export const metadata = { title: 'Sección' }
-
-/**
- * Sin tipos generados de la DB, supabase-js infiere los recursos embebidos
- * como arreglo aunque la relación sea many-to-one. Lo desenvolvemos a mano.
- */
-function aObjeto<T>(valor: T | T[] | null): T | null {
-  if (valor == null) return null
-  return Array.isArray(valor) ? (valor[0] ?? null) : valor
-}
 
 type FilaAsistencia = { matricula_id: number; presente: boolean }
 

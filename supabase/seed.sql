@@ -10,11 +10,22 @@ insert into public.periodos (year, nombre, fecha_inicio, fecha_fin) values
   (2027, 'Q4', '2027-10-01', '2027-12-31')
 on conflict (year, nombre) do nothing;
 
+-- Catálogo de clases de ejemplo (el admin lo administra desde /admin/clases)
+insert into public.clases (nombre) values
+  ('Química'),
+  ('Física 1'),
+  ('Cómputo')
+on conflict (nombre) do nothing;
+
 -- Laboratorios de ejemplo (borrar cuando el admin cargue los reales)
-insert into public.laboratorios (nombre, ubicacion, capacidad) values
-  ('Laboratorio de Química 1', 'Edificio A - Piso 2', 30),
-  ('Laboratorio de Física 1', 'Edificio B - Piso 1', 25),
-  ('Laboratorio de Cómputo 1', 'Edificio C - Piso 3', 40)
+insert into public.laboratorios (nombre, clase_id, ubicacion, capacidad)
+select v.nombre, c.id, v.ubicacion, v.capacidad
+from (values
+  ('Laboratorio de Química 1', 'Química', 'Edificio A - Piso 2', 30),
+  ('Laboratorio de Física 1', 'Física 1', 'Edificio B - Piso 1', 25),
+  ('Laboratorio de Cómputo 1', 'Cómputo', 'Edificio C - Piso 3', 40)
+) as v(nombre, clase, ubicacion, capacidad)
+join public.clases c on c.nombre = v.clase
 on conflict do nothing;
 
 -- Usuario admin de DESARROLLO (solo local; no llevar a producción)

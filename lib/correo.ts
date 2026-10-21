@@ -21,6 +21,13 @@ import type { EstadoAccion } from '@/lib/types'
 
 export const RE_CORREO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
+/**
+ * Power Automate arranca el flujo en frío y puede tardar unos segundos. 20 s
+ * es holgado para un correo y evita que un flujo colgado deje la server action
+ * abierta indefinidamente.
+ */
+const TIEMPO_MAXIMO_MS = 20_000
+
 export async function enviarPorPowerAutomate({
   destinatario,
   asunto,
@@ -46,8 +53,17 @@ export async function enviarPorPowerAutomate({
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ destinatario, asunto, cuerpo }),
+      signal: AbortSignal.timeout(TIEMPO_MAXIMO_MS),
     })
   } catch (error) {
+    if (error instanceof Error && error.name === 'TimeoutError') {
+      return {
+        ok: false,
+        error: `El flujo de Power Automate no respondió en ${
+          TIEMPO_MAXIMO_MS / 1000
+        } segundos. Revisa el flujo y vuelve a intentarlo.`,
+      }
+    }
     return {
       ok: false,
       error: `No se pudo contactar el flujo de Power Automate: ${mensaje(
