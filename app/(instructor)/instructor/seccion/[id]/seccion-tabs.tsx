@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import type { ClaseOpcion } from '@/lib/types'
 import GrillaAsistencia, { type SesionAsistencia } from './grilla'
 import CapturaNotas, { type AlumnoNota } from './notas'
 
@@ -26,10 +27,13 @@ export default function EspacioSeccion({
   seccionId,
   alumnos,
   sesiones,
+  clases,
 }: {
   seccionId: number
   alumnos: AlumnoNota[]
   sesiones: SesionAsistencia[]
+  /** Catálogo de clases para el alta manual de alumnos. */
+  clases: ClaseOpcion[]
 }) {
   const [pestana, setPestana] = useState<PestanaId>('asistencia')
 
@@ -62,7 +66,12 @@ export default function EspacioSeccion({
       </div>
 
       {pestana === 'asistencia' ? (
-        <GrillaAsistencia seccionId={seccionId} alumnos={alumnos} sesiones={sesiones} />
+        <GrillaAsistencia
+          seccionId={seccionId}
+          alumnos={alumnos}
+          sesiones={sesiones}
+          clases={clases}
+        />
       ) : (
         <CapturaNotas seccionId={seccionId} alumnos={alumnos} />
       )}

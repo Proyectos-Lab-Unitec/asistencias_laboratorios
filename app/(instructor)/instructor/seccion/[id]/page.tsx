@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { FiArrowLeft } from 'react-icons/fi'
 import { requireRol } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
+import type { ClaseOpcion } from '@/lib/types'
 import EspacioSeccion from './seccion-tabs'
 import type { AlumnoNota } from './notas'
 import type { SesionAsistencia } from './grilla'
@@ -47,20 +48,30 @@ export default async function PaginaSeccion({
 
   if (!seccion) notFound()
 
-  const [{ data: matriculas }, { data: sesiones }] = await Promise.all([
-    supabase
-      .from('matriculas')
-      .select('id, numero_cuenta, nombre, nota_final')
-      .eq('seccion_id', seccionId)
-      .order('nombre', { ascending: true }),
-    // Las asistencias vienen embebidas en su sesión: una consulta en vez de
-    // dos, y así la grilla se arma de una sola pasada.
-    supabase
-      .from('sesiones')
-      .select('id, fecha, estado, asistencias(matricula_id, presente)')
-      .eq('seccion_id', seccionId)
-      .order('fecha', { ascending: true }),
-  ])
+  const [{ data: matriculas }, { data: sesiones }, { data: clases }] =
+    await Promise.all([
+      supabase
+        .from('matriculas')
+        .select(
+          'id, numero_cuenta, nombre, nota_final, docente, clase_id, seccion_clase, carrera, correo, clases(nombre)'
+        )
+        .eq('seccion_id', seccionId)
+        .order('nombre', { ascending: true }),
+      // Las asistencias vienen embebidas en su sesión: una consulta en vez de
+      // dos, y así la grilla se arma de una sola pasada.
+      supabase
+        .from('sesiones')
+        .select('id, fecha, estado, asistencias(matricula_id, presente)')
+        .eq('seccion_id', seccionId)
+        .order('fecha', { ascending: true }),
+      // Catálogo para el alta manual de alumnos: mismo criterio que el QR,
+      // solo se ofrecen las clases activas.
+      supabase
+        .from('clases')
+        .select('id, nombre')
+        .eq('activo', true)
+        .order('nombre', { ascending: true }),
+    ])
 
   const laboratorio = aObjeto(seccion.laboratorios)
   const periodo = aObjeto(seccion.periodos)
@@ -69,6 +80,12 @@ export default async function PaginaSeccion({
     id: m.id,
     numero_cuenta: m.numero_cuenta,
     nombre: m.nombre,
+    docente: (m.docente as string | null) ?? null,
+    clase_id: (m.clase_id as number | null) ?? null,
+    clase: aObjeto(m.clases)?.nombre ?? null,
+    seccion_clase: (m.seccion_clase as string | null) ?? null,
+    carrera: (m.carrera as string | null) ?? null,
+    correo: (m.correo as string | null) ?? null,
     nota_final: m.nota_final as number | null,
   }))
 
@@ -111,6 +128,7 @@ export default async function PaginaSeccion({
         seccionId={seccionId}
         alumnos={alumnos}
         sesiones={sesionesFinales}
+        clases={(clases ?? []) as ClaseOpcion[]}
       />
     </div>
   )

@@ -7,24 +7,26 @@ import {
   useState,
   startTransition,
 } from 'react'
-import { FiCheck, FiPlus, FiUserPlus, FiUsers } from 'react-icons/fi'
+import { FiCheck, FiEdit2, FiPlus, FiUserPlus, FiUsers } from 'react-icons/fi'
 import { BotonesModal, Campo, ModalBase } from '@/components/ui/modal'
 import { InterruptorEstado } from '@/components/ui/interruptor-estado'
 import { CLASE_CELDA, CLASE_FILA } from '@/components/ui/tabla-dato'
-import { ESTADO_INICIAL } from '@/lib/types'
+import {
+  ESTADO_INICIAL,
+  type AlumnoSeccion,
+  type ClaseOpcion,
+  type EstadoAccion,
+} from '@/lib/types'
 import {
   abrirSesion,
+  actualizarAlumno,
   agregarAlumno,
   alternarAsistencia,
   alternarSesion,
   marcarTodosPresentes,
 } from '../actions'
 
-export type AlumnoAsistencia = {
-  id: number
-  numero_cuenta: string
-  nombre: string
-}
+export type AlumnoAsistencia = AlumnoSeccion
 
 export type SesionAsistencia = {
   id: number
@@ -63,6 +65,9 @@ function fechaLarga(iso: string) {
 const CLASE_BOTON =
   'inline-flex items-center gap-1.5 rounded-lg bg-[#06065c] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#0f49b6] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#06065c] disabled:cursor-not-allowed disabled:opacity-50'
 
+const CLASE_SELECT =
+  'w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-black outline-none transition focus:border-[#0f49b6] focus:ring-2 focus:ring-[#0f49b6] disabled:bg-gray-100'
+
 /**
  * Grilla de asistencia: filas = alumnos, columnas = fechas.
  *
@@ -80,10 +85,13 @@ export default function GrillaAsistencia({
   seccionId,
   alumnos,
   sesiones,
+  clases,
 }: {
   seccionId: number
   alumnos: AlumnoAsistencia[]
   sesiones: SesionAsistencia[]
+  /** Catálogo para el alta manual de alumnos. */
+  clases: ClaseOpcion[]
 }) {
   // Un hook por acción (React no deja llamar hooks dentro de un map, pero sí
   // tener varios en el componente). El de las casillas es uno solo para toda la
@@ -101,6 +109,7 @@ export default function GrillaAsistencia({
     ESTADO_INICIAL
   )
   const [modalAlumno, setModalAlumno] = useState(false)
+  const [editando, setEditando] = useState<AlumnoSeccion | null>(null)
   const contenedor = useRef<HTMLDivElement>(null)
   // Día elegido en el formulario de la barra, para llevarle la vista cuando
   // la sesión se acabe de crear.
@@ -303,14 +312,27 @@ export default function GrillaAsistencia({
                   // y bg-inherit hereda este valor (y el de las bandas y el hover).
                   <tr key={alumno.id} className={`${CLASE_FILA} bg-white`}>
                     <td
-                      className={`${CLASE_CELDA} sticky left-0 z-10 min-w-[210px] bg-inherit`}
+                      className={`${CLASE_CELDA} sticky left-0 z-10 min-w-[240px] bg-inherit`}
                     >
-                      <p className="font-semibold text-gray-900">
-                        {alumno.nombre}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        #{alumno.numero_cuenta}
-                      </p>
+                      <div className="flex items-center justify-between gap-2">
+                        <div>
+                          <p className="font-semibold text-gray-900">
+                            {alumno.nombre}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            #{alumno.numero_cuenta}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setEditando(alumno)}
+                          title="Editar los datos del alumno"
+                          aria-label={`Editar a ${alumno.nombre}`}
+                          className="shrink-0 rounded-md p-1.5 text-gray-400 transition-colors hover:bg-[#06065c]/10 hover:text-[#06065c] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#06065c]"
+                        >
+                          <FiEdit2 size={14} aria-hidden />
+                        </button>
+                      </div>
                     </td>
 
                     {sesiones.map((sesion) => {
@@ -377,9 +399,29 @@ export default function GrillaAsistencia({
           onCerrar={() => setModalAlumno(false)}
         >
           <FormularioAlumno
+            accion={agregarAlumno}
             seccionId={seccionId}
+            clases={clases}
             onExito={() => setModalAlumno(false)}
             onCancelar={() => setModalAlumno(false)}
+          />
+        </ModalBase>
+      )}
+
+      {editando && (
+        <ModalBase
+          titulo="Editar alumno"
+          ancho="max-w-lg"
+          onCerrar={() => setEditando(null)}
+        >
+          <FormularioAlumno
+            key={editando.id}
+            accion={actualizarAlumno}
+            seccionId={seccionId}
+            clases={clases}
+            inicial={editando}
+            onExito={() => setEditando(null)}
+            onCancelar={() => setEditando(null)}
           />
         </ModalBase>
       )}
@@ -391,35 +433,55 @@ const VACIOS_ALUMNO = {
   numero_cuenta: '',
   nombre: '',
   docente: '',
+  clase_id: '',
+  seccion_clase: '',
   carrera: '',
   correo: '',
 }
 
 /**
- * Alta manual de un alumno.
+ * Alta y edición de un alumno.
  *
  * Es el mismo formulario que el público de `/registro/[token]`, salvo que acá
  * manda el instructor y no hace falta token: carrera y correo quedan
  * opcionales porque no alimentan el reporte de Excel.
  *
  * El form vive dentro del modal, y el modal solo se monta cuando está abierto;
- * por eso su `useActionState` arranca limpio en cada alta y el `estado.ok`
+ * por eso su `useActionState` arranca limpio en cada apertura y el `estado.ok`
  * resultante no cierra una ventana anterior por accidente.
  */
+type AccionFormAlumno = (
+  previo: EstadoAccion,
+  formData: FormData
+) => Promise<EstadoAccion>
+
 function FormularioAlumno({
+  accion,
   seccionId,
+  clases,
+  inicial,
   onExito,
   onCancelar,
 }: {
+  accion: AccionFormAlumno
   seccionId: number
+  clases: ClaseOpcion[]
+  /** Si viene, el formulario edita en vez de dar de alta. */
+  inicial?: AlumnoSeccion
   onExito: () => void
   onCancelar: () => void
 }) {
-  const [estado, enviar, pendiente] = useActionState(
-    agregarAlumno,
-    ESTADO_INICIAL
-  )
-  const [campos, setCampos] = useState(VACIOS_ALUMNO)
+  const [estado, enviar, pendiente] = useActionState(accion, ESTADO_INICIAL)
+  const [campos, setCampos] = useState({
+    ...VACIOS_ALUMNO,
+    numero_cuenta: inicial?.numero_cuenta ?? '',
+    nombre: inicial?.nombre ?? '',
+    docente: inicial?.docente ?? '',
+    clase_id: inicial?.clase_id ? String(inicial.clase_id) : '',
+    seccion_clase: inicial?.seccion_clase ?? '',
+    carrera: inicial?.carrera ?? '',
+    correo: inicial?.correo ?? '',
+  })
 
   useEffect(() => {
     if (estado.ok) onExito()
@@ -429,9 +491,23 @@ function FormularioAlumno({
     (clave: keyof typeof VACIOS_ALUMNO) => (valor: string) =>
       setCampos((previo) => ({ ...previo, [clave]: valor }))
 
+  // Si la clase del alumno se dio de baja, no está en el catálogo activo: se
+  // agrega al final para no perderla al guardar.
+  const opcionesClase = [...clases]
+  if (
+    inicial?.clase_id &&
+    !opcionesClase.some((clase) => clase.id === inicial.clase_id)
+  ) {
+    opcionesClase.push({
+      id: inicial.clase_id,
+      nombre: `${inicial.clase ?? 'Clase'} (inactiva)`,
+    })
+  }
+
   return (
     <form action={enviar} className="space-y-4">
       <input type="hidden" name="seccion_id" value={seccionId} />
+      {inicial && <input type="hidden" name="id" value={inicial.id} />}
 
       <Campo
         label="Número de cuenta"
@@ -465,6 +541,49 @@ function FormularioAlumno({
       />
 
       <Campo
+        label="Clase"
+        name="clase_id"
+        valor={campos.clase_id}
+        onChange={cambiar('clase_id')}
+        disabled={pendiente}
+        requerido
+      >
+        <select
+          name="clase_id"
+          value={campos.clase_id}
+          onChange={(e) => cambiar('clase_id')(e.target.value)}
+          disabled={pendiente || opcionesClase.length === 0}
+          required
+          className={CLASE_SELECT}
+        >
+          <option value="">Elige una clase…</option>
+          {opcionesClase.map((clase) => (
+            <option key={clase.id} value={clase.id}>
+              {clase.nombre}
+            </option>
+          ))}
+        </select>
+      </Campo>
+
+      <Campo
+        label="Sección de la clase"
+        name="seccion_clase"
+        valor={campos.seccion_clase}
+        onChange={cambiar('seccion_clase')}
+        placeholder="V1"
+        disabled={pendiente}
+        requerido
+        maxLength={40}
+      />
+
+      {opcionesClase.length === 0 && (
+        <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          No hay clases activas. Crea una en Clases (admin) antes de dar de
+          alta alumnos.
+        </p>
+      )}
+
+      <Campo
         label="Carrera"
         name="carrera"
         valor={campos.carrera}
@@ -492,8 +611,8 @@ function FormularioAlumno({
       <BotonesModal
         onCancelar={onCancelar}
         guardando={pendiente}
-        texto="Agregar alumno"
-        textoGuardando="Agregando..."
+        texto={inicial ? 'Guardar cambios' : 'Agregar alumno'}
+        textoGuardando={inicial ? 'Guardando...' : 'Agregando...'}
       />
     </form>
   )

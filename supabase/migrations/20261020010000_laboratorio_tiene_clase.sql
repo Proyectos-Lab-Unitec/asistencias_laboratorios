@@ -1,0 +1,12 @@
+-- La materia que se imparte en el laboratorio.
+--
+-- La columna CLASE del reporte no tenia de donde salir: ni laboratorios ni
+-- secciones guardaban la materia. Como la materia la fija el laboratorio (no
+-- el trimestre ni el grupo), el dato vive aca y una sola fila alimenta todas
+-- las secciones que salgan de ese laboratorio.
+--
+-- Se agrega sin NOT NULL a proposito: ya hay laboratorios sembrados en la base
+-- local y un NOT NULL los haria fallar. Quien exige el valor es la validacion
+-- de la app (admin/laboratorios/actions.ts), asi que las filas nuevas nunca
+-- quedan vacias y las viejas se completan al editarlas.
+alter table public.laboratorios add column clase text;

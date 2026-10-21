@@ -13,12 +13,16 @@ import {
   actualizarInstructor,
   alternarInstructor,
   eliminarInstructor,
+  eliminarInstructores,
   crearInstructor,
 } from './actions'
 import { BotonesModal, Campo, ModalBase } from '@/components/ui/modal'
 import { InterruptorEstado } from '@/components/ui/interruptor-estado'
 import {
   BarraBusqueda,
+  BarraSeleccion,
+  CasillaCabecera,
+  CasillaFila,
   CLASE_ACCION,
   CLASE_CELDA,
   CLASE_FILA,
@@ -245,6 +249,66 @@ function ConfirmarEliminacion({
   )
 }
 
+function ConfirmarEliminacionMultiple({
+  seleccionadas,
+  onExito,
+  onCancelar,
+}: {
+  seleccionadas: Perfil[]
+  onExito: () => void
+  onCancelar: () => void
+}) {
+  const [estado, enviar, pendiente] = useActionState(
+    eliminarInstructores,
+    ESTADO_INICIAL
+  )
+
+  useEffect(() => {
+    if (estado.ok) onExito()
+  }, [estado, onExito])
+
+  return (
+    <form action={enviar}>
+      {seleccionadas.map((cuenta) => (
+        <input key={cuenta.id} type="hidden" name="ids" value={cuenta.id} />
+      ))}
+
+      <p className="text-sm text-gray-600">
+        ¿Estás seguro de que deseas eliminar{' '}
+        <strong>{plural(seleccionadas.length, 'cuenta')}</strong>?
+      </p>
+
+      <ul className="mt-3 max-h-40 overflow-y-auto rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700">
+        {seleccionadas.map((cuenta) => (
+          <li key={cuenta.id} className="py-0.5">
+            {cuenta.nombre}
+            {cuenta.email ? ` (${cuenta.email})` : ''}
+          </li>
+        ))}
+      </ul>
+
+      <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
+        Se eliminan también sus secciones, con matrículas, sesiones y
+        asistencias. Esta acción no se puede deshacer.
+      </p>
+
+      {estado.error && (
+        <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
+          {estado.error}
+        </p>
+      )}
+
+      <BotonesModal
+        onCancelar={onCancelar}
+        guardando={pendiente}
+        texto={`Eliminar ${seleccionadas.length}`}
+        textoGuardando="Eliminando..."
+        peligro
+      />
+    </form>
+  )
+}
+
 export default function GestionInstructores({
   cuentas,
   seccionesPorInstructor,
@@ -256,6 +320,8 @@ export default function GestionInstructores({
   const [editando, setEditando] = useState<Perfil | null>(null)
   const [eliminando, setEliminando] = useState<Perfil | null>(null)
   const [verSecciones, setVerSecciones] = useState<Perfil | null>(null)
+  const [eliminandoVarias, setEliminandoVarias] = useState(false)
+  const [seleccionados, setSeleccionados] = useState<string[]>([])
   const [busqueda, setBusqueda] = useState('')
   const [pagina, setPagina] = useState(1)
 
@@ -279,6 +345,21 @@ export default function GestionInstructores({
   }
 
   const limpiarBusqueda = () => buscar('')
+
+  const alternarSeleccion = (id: string) =>
+    setSeleccionados((previo) =>
+      previo.includes(id) ? previo.filter((x) => x !== id) : [...previo, id]
+    )
+
+  // Si un borrado deja ids que ya no existen, la barra seguiría contándolos.
+  useEffect(() => {
+    const existentes = new Set(cuentas.map((cuenta) => cuenta.id))
+    setSeleccionados((previo) => previo.filter((id) => existentes.has(id)))
+  }, [cuentas])
+
+  const seleccionadas = cuentas.filter((cuenta) =>
+    seleccionados.includes(cuenta.id)
+  )
 
   const activas = cuentas.filter((c) => c.activo).length
   const totalSecciones = Object.values(seccionesPorInstructor).reduce(
@@ -304,6 +385,12 @@ export default function GestionInstructores({
         </button>
       </div>
 
+      <BarraSeleccion
+        cantidad={seleccionados.length}
+        onEliminar={() => setEliminandoVarias(true)}
+        onLimpiar={() => setSeleccionados([])}
+      />
+
       <TablaDato
         anchoMinimo="min-w-[720px]"
         total={visibles.length}
@@ -327,6 +414,17 @@ export default function GestionInstructores({
           />
         }
         columnas={[
+          {
+            etiqueta: 'Selección',
+            clase: 'w-10',
+            nodo: (
+              <CasillaCabecera
+                visibles={visibles.map((cuenta) => cuenta.id)}
+                seleccionados={seleccionados}
+                onCambio={setSeleccionados}
+              />
+            ),
+          },
           { etiqueta: 'Nombre' },
           { etiqueta: 'Correo' },
           { etiqueta: 'Secciones', clase: 'text-right' },
@@ -352,6 +450,14 @@ export default function GestionInstructores({
           const secciones = seccionesPorInstructor[cuenta.id] ?? []
           return (
             <tr key={cuenta.id} className={CLASE_FILA}>
+              <td className={`${CLASE_CELDA} w-10`}>
+                <CasillaFila
+                  id={cuenta.id}
+                  marcada={seleccionados.includes(cuenta.id)}
+                  onCambio={alternarSeleccion}
+                  etiqueta={cuenta.nombre}
+                />
+              </td>
               <td className={CLASE_CELDA}>
                 <button
                   type="button"
@@ -453,6 +559,22 @@ export default function GestionInstructores({
             secciones={(seccionesPorInstructor[eliminando.id] ?? []).length}
             onExito={() => setEliminando(null)}
             onCancelar={() => setEliminando(null)}
+          />
+        </ModalBase>
+      )}
+
+      {eliminandoVarias && (
+        <ModalBase
+          titulo="Eliminar instructores"
+          onCerrar={() => setEliminandoVarias(false)}
+        >
+          <ConfirmarEliminacionMultiple
+            seleccionadas={seleccionadas}
+            onExito={() => {
+              setSeleccionados([])
+              setEliminandoVarias(false)
+            }}
+            onCancelar={() => setEliminandoVarias(false)}
           />
         </ModalBase>
       )}

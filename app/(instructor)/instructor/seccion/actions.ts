@@ -324,12 +324,12 @@ export async function guardarNotas(
       continue
     }
 
-    // Escala del laboratorio: 15 puntos como máximo.
+    // La escala la fija la clase, no el laboratorio: se acepta de 0 a 100.
     const nota = Number(texto)
-    if (!Number.isFinite(nota) || nota < 0 || nota > 15) {
+    if (!Number.isFinite(nota) || nota < 0 || nota > 100) {
       return {
         ok: false,
-        error: `La nota debe estar entre 0 y 15 (se recibió «${texto}»).`,
+        error: `La nota debe estar entre 0 y 100 (se recibió «${texto}»).`,
       }
     }
 
@@ -377,16 +377,87 @@ export async function guardarNotas(
   return OK
 }
 
+/** Lo que se escribe en `matriculas` al dar de alta o editar a un alumno. */
+type DatosAlumno = {
+  numero_cuenta: string
+  nombre: string
+  docente: string
+  clase_id: number
+  seccion_clase: string
+  carrera: string | null
+  correo: string | null
+}
+
+/**
+ * Validación compartida por el alta y la edición del alumno.
+ *
+ * Docente, clase y sección de clase van obligatorios porque las tres son
+ * columnas del reporte de Excel; carrera y correo quedan opcionales porque la
+ * tabla los permite nulos y no se imprimen.
+ */
+function validarAlumno(formData: FormData):
+  | { datos: DatosAlumno }
+  | { error: string } {
+  const numeroCuenta = String(formData.get('numero_cuenta') ?? '').trim()
+  const nombre = String(formData.get('nombre') ?? '').trim()
+  const docente = String(formData.get('docente') ?? '').trim()
+  const carrera = String(formData.get('carrera') ?? '').trim()
+  const correo = String(formData.get('correo') ?? '').trim()
+  const claseId = Number.parseInt(String(formData.get('clase_id') ?? ''), 10)
+  const seccionClase = String(formData.get('seccion_clase') ?? '').trim()
+
+  if (!numeroCuenta) {
+    return { error: 'El número de cuenta es obligatorio.' }
+  }
+  if (numeroCuenta.length > 20) {
+    return { error: 'El número de cuenta es demasiado largo.' }
+  }
+  if (!nombre) return { error: 'El nombre es obligatorio.' }
+  if (nombre.length > 120) {
+    return { error: 'El nombre es demasiado largo.' }
+  }
+  if (!docente) return { error: 'El docente es obligatorio.' }
+  if (docente.length > 120) {
+    return { error: 'El docente es demasiado largo.' }
+  }
+  if (carrera.length > 120) {
+    return { error: 'La carrera es demasiado larga.' }
+  }
+  if (correo.length > 120) {
+    return { error: 'El correo es demasiado largo.' }
+  }
+  if (correo && !RE_CORREO.test(correo)) {
+    return { error: 'El correo no tiene un formato válido.' }
+  }
+  if (!Number.isInteger(claseId) || claseId <= 0) {
+    return { error: 'Elige una clase.' }
+  }
+  if (!seccionClase) {
+    return { error: 'La sección de la clase es obligatoria.' }
+  }
+  if (seccionClase.length > 40) {
+    return { error: 'La sección de la clase es demasiado larga.' }
+  }
+
+  return {
+    datos: {
+      numero_cuenta: numeroCuenta,
+      nombre,
+      docente,
+      clase_id: claseId,
+      seccion_clase: seccionClase,
+      carrera: carrera || null,
+      correo: correo || null,
+    },
+  }
+}
+
 /**
  * Da de alta un alumno a mano (§4.1.6).
  *
  * Es el mismo alta que haría el alumno desde el QR, pero lo dispara el
  * instructor: sirve para quien llegó sin celular y para corregir un registro
  * equivocado sin tener que tocar la base.
- *
- * El docente va obligatorio porque es el que imprime el reporte de Excel; en
- * cambio carrera y correo quedan opcionales porque la tabla los permite nulos
- * y ninguna de las dos columnas aparece en el reporte.
  */
 export async function agregarAlumno(
   _previo: EstadoAccion,
@@ -396,39 +467,12 @@ export async function agregarAlumno(
   if (!instructor) return SIN_PERMISO
 
   const seccionId = Number(formData.get('seccion_id'))
-  const numeroCuenta = String(formData.get('numero_cuenta') ?? '').trim()
-  const nombre = String(formData.get('nombre') ?? '').trim()
-  const docente = String(formData.get('docente') ?? '').trim()
-  const carrera = String(formData.get('carrera') ?? '').trim()
-  const correo = String(formData.get('correo') ?? '').trim()
-
   if (!Number.isInteger(seccionId) || seccionId <= 0) {
     return { ok: false, error: 'Sección no válida.' }
   }
 
-  if (!numeroCuenta) {
-    return { ok: false, error: 'El número de cuenta es obligatorio.' }
-  }
-  if (numeroCuenta.length > 20) {
-    return { ok: false, error: 'El número de cuenta es demasiado largo.' }
-  }
-  if (!nombre) return { ok: false, error: 'El nombre es obligatorio.' }
-  if (nombre.length > 120) {
-    return { ok: false, error: 'El nombre es demasiado largo.' }
-  }
-  if (!docente) return { ok: false, error: 'El docente es obligatorio.' }
-  if (docente.length > 120) {
-    return { ok: false, error: 'El docente es demasiado largo.' }
-  }
-  if (carrera.length > 120) {
-    return { ok: false, error: 'La carrera es demasiado larga.' }
-  }
-  if (correo.length > 120) {
-    return { ok: false, error: 'El correo es demasiado largo.' }
-  }
-  if (correo && !RE_CORREO.test(correo)) {
-    return { ok: false, error: 'El correo no tiene un formato válido.' }
-  }
+  const validado = validarAlumno(formData)
+  if ('error' in validado) return { ok: false, error: validado.error }
 
   const supabase = await createClient()
   if (!(await seccionPropia(supabase, seccionId, instructor.id))) {
@@ -439,11 +483,7 @@ export async function agregarAlumno(
   // en la misma sección y el reporte no distingue entre ambos.
   const { error } = await supabase.from('matriculas').insert({
     seccion_id: seccionId,
-    numero_cuenta: numeroCuenta,
-    nombre,
-    docente,
-    carrera: carrera || null,
-    correo: correo || null,
+    ...validado.datos,
     origen: 'manual',
   })
 
@@ -455,6 +495,64 @@ export async function agregarAlumno(
       }
     }
     return { ok: false, error: `No se pudo agregar al alumno: ${error.message}` }
+  }
+
+  revalidatePath(ruta(seccionId))
+  return OK
+}
+
+/**
+ * Corrige los datos de una matrícula ya inscrita.
+ *
+ * No toca `nota_final` (se captura en su propia pestaña) ni `origen`: son datos
+ * que el instructor no debería reescribir desde acá. El filtro por `seccion_id`
+ * evita que un id de otra sección sirva para editar a un alumno ajeno.
+ */
+export async function actualizarAlumno(
+  _previo: EstadoAccion,
+  formData: FormData
+): Promise<EstadoAccion> {
+  const instructor = await requiereInstructor()
+  if (!instructor) return SIN_PERMISO
+
+  const seccionId = Number(formData.get('seccion_id'))
+  const matriculaId = Number(formData.get('id'))
+
+  if (!Number.isInteger(seccionId) || seccionId <= 0) {
+    return { ok: false, error: 'Sección no válida.' }
+  }
+  if (!Number.isInteger(matriculaId) || matriculaId <= 0) {
+    return { ok: false, error: 'Alumno no válido.' }
+  }
+
+  const validado = validarAlumno(formData)
+  if ('error' in validado) return { ok: false, error: validado.error }
+
+  const supabase = await createClient()
+  if (!(await seccionPropia(supabase, seccionId, instructor.id))) {
+    return SIN_PERMISO
+  }
+
+  const { error } = await supabase
+    .from('matriculas')
+    .update(validado.datos)
+    .eq('id', matriculaId)
+    .eq('seccion_id', seccionId)
+
+  if (error) {
+    if (error.code === '23505') {
+      return {
+        ok: false,
+        error: 'Ya hay un alumno con ese número de cuenta en esta sección.',
+      }
+    }
+    if (error.code === '23503') {
+      return { ok: false, error: 'La clase seleccionada ya no existe.' }
+    }
+    return {
+      ok: false,
+      error: `No se pudo actualizar al alumno: ${error.message}`,
+    }
   }
 
   revalidatePath(ruta(seccionId))

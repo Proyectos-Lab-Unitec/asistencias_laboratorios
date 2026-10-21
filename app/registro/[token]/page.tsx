@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { FiAlertCircle, FiLock } from 'react-icons/fi'
 import { crearClienteAnon } from '@/lib/supabase/anon-server'
+import type { ClaseOpcion } from '@/lib/types'
 import FormularioRegistro, { type SeccionPublica } from './registro-form'
 
 // Los datos cambian en el momento (el instructor abre/cierra el registro),
@@ -92,9 +93,17 @@ export default async function PaginaRegistro({
   if (!RE_UUID.test(token)) notFound()
 
   const supabase = crearClienteAnon()
-  const { data, error } = await supabase.rpc('get_seccion_by_token', {
-    p_token: token,
-  })
+  const [{ data, error }, { data: clases }] = await Promise.all([
+    supabase.rpc('get_seccion_by_token', {
+      p_token: token,
+    }),
+    // El alumno elige su materia de un catálogo cerrado, no la escribe.
+    supabase
+      .from('clases')
+      .select('id, nombre')
+      .eq('activo', true)
+      .order('nombre', { ascending: true }),
+  ])
 
   if (error) {
     return (
@@ -143,7 +152,11 @@ export default async function PaginaRegistro({
         Completa tus datos para inscribirte en este laboratorio.
       </p>
       <DatosSeccion seccion={seccion} />
-      <FormularioRegistro token={token} seccion={seccion} />
+      <FormularioRegistro
+        token={token}
+        seccion={seccion}
+        clases={(clases ?? []) as ClaseOpcion[]}
+      />
     </Marco>
   )
 }

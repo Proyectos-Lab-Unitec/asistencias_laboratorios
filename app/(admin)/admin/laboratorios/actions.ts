@@ -7,6 +7,7 @@ import type { EstadoAccion } from '@/lib/types'
 
 type DatosLaboratorio = {
   nombre: string
+  clase_id: number
   ubicacion: string | null
   capacidad: number
 }
@@ -17,6 +18,10 @@ function validar(formData: FormData):
   | { datos: DatosLaboratorio }
   | { error: string } {
   const nombre = String(formData.get('nombre') ?? '').trim()
+  const claseId = Number.parseInt(
+    String(formData.get('clase_id') ?? '').trim(),
+    10
+  )
   const ubicacion = String(formData.get('ubicacion') ?? '').trim()
   const capacidad = Number.parseInt(
     String(formData.get('capacidad') ?? '').trim(),
@@ -25,6 +30,11 @@ function validar(formData: FormData):
 
   if (!nombre) return { error: 'El nombre es obligatorio.' }
   if (nombre.length > 120) return { error: 'El nombre es demasiado largo.' }
+  // La clase sale del catálogo: sin ella el laboratorio no sirve para filtrar
+  // reportes ni para que el alumno elija su materia.
+  if (!Number.isInteger(claseId) || claseId <= 0) {
+    return { error: 'Elige una clase.' }
+  }
   if (!Number.isInteger(capacidad) || capacidad < 1 || capacidad > 100000) {
     return { error: 'La capacidad debe ser un número entero mayor a 0.' }
   }
@@ -32,6 +42,7 @@ function validar(formData: FormData):
   return {
     datos: {
       nombre,
+      clase_id: claseId,
       ubicacion: ubicacion ? ubicacion : null,
       capacidad,
     },
@@ -160,6 +171,39 @@ export async function alternarLaboratorio(
     .eq('id', id)
 
   if (error) return { ok: false, error: `No se pudo actualizar: ${error.message}` }
+
+  revalidatePath('/admin/laboratorios')
+  return OK
+}
+
+/**
+ * Borrado múltiple. Igual que el individual, la cascada de
+ * `secciones.laboratorio_id` se lleva matrículas, sesiones y asistencias.
+ */
+export async function eliminarLaboratorios(
+  _previo: EstadoAccion,
+  formData: FormData
+): Promise<EstadoAccion> {
+  const admin = await obtenerAdmin()
+  if (!admin) return { ok: false, error: 'No tienes permiso para hacer esto.' }
+
+  const ids = formData
+    .getAll('ids')
+    .map((valor) => Number.parseInt(String(valor), 10))
+    .filter((id) => Number.isInteger(id) && id > 0)
+
+  if (ids.length === 0) {
+    return { ok: false, error: 'No hay laboratorios seleccionados.' }
+  }
+
+  const { error } = await admin.from('laboratorios').delete().in('id', ids)
+
+  if (error) {
+    return {
+      ok: false,
+      error: `No se pudieron eliminar los laboratorios: ${error.message}`,
+    }
+  }
 
   revalidatePath('/admin/laboratorios')
   return OK

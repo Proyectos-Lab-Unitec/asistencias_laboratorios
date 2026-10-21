@@ -20,7 +20,9 @@ Sistema **interno** para la universidad de manejo de asistencias, inscripciones 
 
 ### Admin
 - Gestiona las **cuentas de instructores** (crear, editar, desactivar).
+- Gestiona el **catálogo de clases** (Física 1, Química, ...): se elige al crear un laboratorio y también al inscribir un alumno.
 - Gestiona los **laboratorios disponibles** (crear, editar, desactivar; no borrar, porque secciones existentes apuntan a ellos).
+- Las tablas de gestión permiten **seleccionar varias filas y eliminarlas de una vez**.
 - Genera **reportes por sección** y **reportes globales** (todas las secciones), con opción de filtrar por el trimestre actual o incluir todos.
 
 ### Instructor
@@ -47,7 +49,9 @@ perfiles      : id UUID PK (FK → auth.users), rol ('admin'|'instructor'),
                 activo BOOL
 
 CATÁLOGO (lo maneja el admin)
-laboratorios  : id, nombre, ubicacion, capacidad INT, activo BOOL
+clases        : id, nombre UNIQUE, activo BOOL   -- Física 1, Química, ...
+laboratorios  : id, nombre, clase_id FK → clases,
+                ubicacion, capacidad INT, activo BOOL
 periodos      : id, year INT, nombre ('Q1'|'Q2'|'Q3'|'Q4'),
                 fecha_inicio DATE, fecha_fin DATE
 
@@ -55,7 +59,7 @@ SECCIONES (las crea el instructor)
 secciones     : id, laboratorio_id FK → laboratorios,
                 instructor_id FK → perfiles,
                 periodo_id FK → periodos,
-                grupo STRING,            -- "001", "002"... (la "sección" de la clase)
+                grupo STRING,            -- la sección DEL LABORATORIO ("Viernes 4:00 p.m.")
                 horario STRING,          -- "07:00-09:00"
                 token_registro UUID UNIQUE,
                 registro_abierto BOOL
@@ -65,7 +69,9 @@ matriculas    : id, seccion_id FK → secciones,
                 numero_cuenta STRING,
                 nombre STRING, carrera STRING, correo STRING,
                 docente STRING,          -- lo declara el alumno al inscribirse
-                nota_final DECIMAL NULL,
+                clase_id FK → clases,    -- la materia que cursa, del catálogo
+                seccion_clase STRING,    -- su paralelo de esa materia ("V1")
+                nota_final DECIMAL NULL, -- escala 0 a 100, la fija la clase
                 origen ('qr'|'manual'),
                 registrado_en TIMESTAMPTZ
                 UNIQUE (seccion_id, numero_cuenta)   -- evita duplicados por QR repetido
@@ -96,10 +102,10 @@ asistencias   : id, sesion_id FK → sesiones,
 ### 4.1 Registro por QR (primer día)
 1. Instructor crea la sección → se genera `token_registro` (UUID único).
 2. La app expone una ruta pública `/registro/[token]` que muestra el formulario.
-3. El alumno ingresa cuenta, nombre, carrera, correo y docente → se inserta en `matriculas` con `origen='qr'`.
+3. El alumno ingresa cuenta, nombre, carrera, correo, docente, clase (del catálogo) y sección de su clase → se inserta en `matriculas` con `origen='qr'`.
 4. Protecciones de la ruta pública: token válido + `registro_abierto = true`, con ventana de validez (primer día) y rate-limiting.
 5. El instructor puede cerrar el registro manualmente (`registro_abierto = false`).
-6. También puede agregar alumnos manualmente desde la pestaña **Asistencia** del espacio de la sección (`origen='manual'`), pensado para quien llegó sin celular o para corregir un registro equivocado. Van obligatorios cuenta, nombre y docente (el que imprime el reporte); carrera y correo son opcionales porque no aparecen en el Excel.
+6. También puede agregar alumnos manualmente desde la pestaña **Asistencia** del espacio de la sección (`origen='manual'`), pensado para quien llegó sin celular o para corregir un registro equivocado. Van obligatorios cuenta, nombre, docente, clase y sección de clase (los cinco imprimen en el reporte); carrera y correo son opcionales porque no aparecen en el Excel.
 
 ### 4.2 Asistencia manual
 1. El instructor abre la **sesión** de un día con un calendario: por defecto hoy, y también puede dar de alta una fecha pasada que se pasó por alto. No se aceptan fechas futuras (`UNIQUE(seccion_id, fecha)`).
@@ -111,7 +117,7 @@ asistencias   : id, sesion_id FK → sesiones,
 
 ### 4.3 Notas finales
 - El instructor ingresa **una sola nota final** por alumno al terminar el trimestre → `matriculas.nota_final`.
-- Escala **0 a 15**: la nota máxima de un laboratorio es 15 puntos.
+- Escala **0 a 100**: el tope depende de la clase, no del laboratorio.
 - Sin calificaciones por práctica.
 - Se capturan de una sola pasada para toda la sección, y solo se escriben las filas cuyo valor cambió.
 
@@ -129,13 +135,13 @@ Se generan **server-side** en Next.js. Los tres tipos comparten preview, descarg
 
 **Modo A — Notas finales** *(por defecto en el reporte global del admin)*
 ```
-ALUMNO | LABORATORIO ID | NO. CUENTA | SECCION | DOCENTE | HORARIO | INSTRUCTOR | NOTA FINAL
+ALUMNO | NO. CUENTA | LABORATORIO ID | SECCION | DOCENTE | CLASE | HORARIO | INSTRUCTOR | NOTA FINAL
 ```
 
-**Modo B — Asistencia** *(incluye la nota final)*
+**Modo B — Asistencia** *(incluye la nota final; ASISTENCIAS va como "presentes/total")*
 ```
-ALUMNO | LABORATORIO ID | NO. CUENTA | SECCION | DOCENTE | HORARIO | INSTRUCTOR |
-ASISTENCIAS (presentes/total) | % ASISTENCIA | NOTA FINAL
+ALUMNO | NO. CUENTA | LABORATORIO ID | SECCION | DOCENTE | CLASE | HORARIO | INSTRUCTOR |
+ASISTENCIAS | % ASISTENCIA | NOTA FINAL
 ```
 
 ### Mapeo de columnas
@@ -144,8 +150,9 @@ ASISTENCIAS (presentes/total) | % ASISTENCIA | NOTA FINAL
 | ALUMNO | `matriculas.nombre` |
 | LABORATORIO ID | `laboratorios.nombre` |
 | NO. CUENTA | `matriculas.numero_cuenta` |
-| SECCION | `secciones.grupo` (la sección de la clase, no del laboratorio) |
+| SECCION | `matriculas.seccion_clase` (el paralelo de la clase del alumno; en matrículas viejas sin el dato, cae a `secciones.grupo`) |
 | DOCENTE | `matriculas.docente` (lo declaró cada alumno) |
+| CLASE | `matriculas.clase_id → clases.nombre` (si la matrícula no la trae, se usa la del laboratorio) |
 | HORARIO | `secciones.horario` |
 | INSTRUCTOR | `perfiles.nombre` |
 | NOTA FINAL | `matriculas.nota_final` |
@@ -203,7 +210,7 @@ supabase/
 1. [x] Estructura del proyecto Next.js (App Router) + carpetas
 2. [x] Tablas en Supabase + políticas RLS (+ seed de periodos Q1–Q4 por año)
 3. [x] Auth y roles (admin / instructor)
-4. [x] CRUD de admin (laboratorios, cuentas de instructores)
+4. [x] CRUD de admin (clases, laboratorios, cuentas de instructores)
 5. [x] Secciones del instructor + generación de QR de registro
 6. [x] Registro público por QR, marcado de asistencia, notas finales
 7. [ ] Reportes Excel (modos A/B) + preview + envío por correo

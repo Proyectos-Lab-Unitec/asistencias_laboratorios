@@ -64,6 +64,8 @@ const ERRORES = {
   seccion_llena: 'La sección ya alcanzó su capacidad máxima de alumnos.',
   ya_registrado:
     'Ya existe un alumno con ese número de cuenta en esta sección.',
+  clase_invalida: 'Elige una clase válida de la lista.',
+  seccion_invalida: 'La sección de tu clase es obligatoria.',
 } as const
 
 type CodigoError = keyof typeof ERRORES
@@ -82,6 +84,8 @@ export async function registrarAlumno(
   const carrera = leerCampo(formData, 'carrera')
   const correo = leerCampo(formData, 'correo')
   const docente = leerCampo(formData, 'docente')
+  const claseId = Number.parseInt(leerCampo(formData, 'clase_id'), 10)
+  const seccionClase = leerCampo(formData, 'seccion_clase')
 
   if (!RE_UUID.test(token)) return { ok: false, error: ERRORES.token_invalido }
 
@@ -96,6 +100,15 @@ export async function registrarAlumno(
   if (!RE_CORREO.test(correo)) return { ok: false, error: 'El correo no tiene un formato válido.' }
   if (!docente) return { ok: false, error: 'El docente es obligatorio.' }
   if (docente.length > 120) return { ok: false, error: 'El nombre del docente es demasiado largo.' }
+  if (!Number.isInteger(claseId) || claseId <= 0) {
+    return { ok: false, error: 'Elige la clase que cursas.' }
+  }
+  if (!seccionClase) {
+    return { ok: false, error: 'La sección de tu clase es obligatoria.' }
+  }
+  if (seccionClase.length > 40) {
+    return { ok: false, error: 'La sección de la clase es demasiado larga.' }
+  }
 
   if (excedeElLimite(await claveDelSolicitante())) {
     return {
@@ -112,6 +125,8 @@ export async function registrarAlumno(
     p_carrera: carrera,
     p_correo: correo,
     p_docente: docente,
+    p_clase_id: claseId,
+    p_seccion_clase: seccionClase,
   })
 
   if (error) {

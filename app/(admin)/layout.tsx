@@ -11,6 +11,7 @@ export const instant = false
 const navItems: NavItem[] = [
   { href: '/admin', label: 'Dashboard', icon: 'layout', end: true },
   { href: '/admin/laboratorios', label: 'Laboratorios', icon: 'box' },
+  { href: '/admin/clases', label: 'Clases', icon: 'book' },
   { href: '/admin/instructores', label: 'Instructores', icon: 'users' },
   { href: '/admin/reportes', label: 'Reportes', icon: 'file' },
 ]

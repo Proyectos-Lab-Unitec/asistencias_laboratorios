@@ -1,5 +1,12 @@
+'use client'
+
 import type { ReactNode } from 'react'
-import { FiChevronLeft, FiChevronRight, FiSearch } from 'react-icons/fi'
+import {
+  FiChevronLeft,
+  FiChevronRight,
+  FiSearch,
+  FiTrash2,
+} from 'react-icons/fi'
 
 /**
  * Tabla de datos de las pantallas de gestión.
@@ -19,6 +26,11 @@ export type ColumnaTabla = {
   etiqueta: string
   /** Clases extra del <th>, p. ej. 'text-right' para columnas numéricas. */
   clase?: string
+  /**
+   * Si viene, el <th> renderiza esto en vez de la etiqueta. Se usa para la
+   * casilla de «seleccionar todo», que necesita estado.
+   */
+  nodo?: ReactNode
 }
 
 /** Fila estándar: bandas suaves, hover del azul de marca y foco de teclado. */
@@ -186,7 +198,7 @@ export function TablaDato({
                   scope="col"
                   className={`px-4 py-3.5 ${col.clase ?? ''}`}
                 >
-                  {col.etiqueta}
+                  {col.nodo ?? col.etiqueta}
                 </th>
               ))}
             </tr>
@@ -227,5 +239,116 @@ export function TablaDato({
 
       {pie && <div className="border-t border-gray-100 px-4 py-3">{pie}</div>}
     </section>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Selección múltiple
+//
+// Se arma con piezas sueltas y no con un hook: cada pantalla ya tiene su
+// `useState`, así que acá solo hacen falta la casilla de la cabecera, la de la
+// fila y la barra de acciones.
+// ---------------------------------------------------------------------------
+
+export const CLASE_CASILLA =
+  'h-4 w-4 cursor-pointer accent-[#06065c] disabled:cursor-not-allowed disabled:opacity-40'
+
+/** Casilla del <th>: marca o desmarca de un golpe lo que se ve en la página. */
+export function CasillaCabecera<T extends string | number>({
+  visibles,
+  seleccionados,
+  onCambio,
+}: {
+  /** ids de las filas que se están mostrando */
+  visibles: T[]
+  seleccionados: T[]
+  onCambio: (ids: T[]) => void
+}) {
+  const marcados = visibles.filter((id) => seleccionados.includes(id)).length
+  const todos = visibles.length > 0 && marcados === visibles.length
+  const algunos = marcados > 0 && !todos
+
+  return (
+    <input
+      type="checkbox"
+      checked={todos}
+      disabled={visibles.length === 0}
+      ref={(el) => {
+        // Estado intermedio: hay algo marcado, pero no todo lo visible.
+        if (el) el.indeterminate = algunos
+      }}
+      onChange={() =>
+        onCambio(
+          todos
+            ? seleccionados.filter((id) => !visibles.includes(id))
+            : [...new Set([...seleccionados, ...visibles])]
+        )
+      }
+      aria-label={
+        todos ? 'Quitar selección de la página' : 'Seleccionar toda la página'
+      }
+      className={CLASE_CASILLA}
+    />
+  )
+}
+
+/** Casilla de una fila. */
+export function CasillaFila<T extends string | number>({
+  id,
+  marcada,
+  onCambio,
+  etiqueta,
+}: {
+  id: T
+  marcada: boolean
+  onCambio: (id: T) => void
+  etiqueta: string
+}) {
+  return (
+    <input
+      type="checkbox"
+      checked={marcada}
+      onChange={() => onCambio(id)}
+      aria-label={`Seleccionar ${etiqueta}`}
+      className={CLASE_CASILLA}
+    />
+  )
+}
+
+/** Barra que aparece cuando hay algo seleccionado. */
+export function BarraSeleccion({
+  cantidad,
+  onEliminar,
+  onLimpiar,
+}: {
+  cantidad: number
+  onEliminar: () => void
+  onLimpiar: () => void
+}) {
+  if (cantidad === 0) return null
+
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#06065c]/20 bg-[#06065c]/[0.04] px-4 py-3">
+      <p className="text-sm font-medium text-[#06065c]">
+        {cantidad} seleccionado{cantidad === 1 ? '' : 's'}
+      </p>
+      <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onLimpiar}
+          className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
+        >
+          Cancelar
+        </button>
+        <button
+          type="button"
+          onClick={onEliminar}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-red-700"
+        >
+          <FiTrash2 size={15} aria-hidden />
+          Eliminar {cantidad}
+        </button>
+      </div>
+    </div>
   )
 }

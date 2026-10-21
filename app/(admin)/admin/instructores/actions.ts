@@ -179,3 +179,45 @@ export async function eliminarInstructor(
   revalidatePath('/admin/instructores')
   return OK
 }
+
+/**
+ * Borrado múltiple. La Admin API no tiene un "delete users" en lote, así que
+ * se borra una por una en paralelo; si alguna falla se reporta cuántas
+ * quedaron para que el admin pueda reintentar solo con esas.
+ */
+export async function eliminarInstructores(
+  _previo: EstadoAccion,
+  formData: FormData
+): Promise<EstadoAccion> {
+  const admin = await requiereAdmin()
+  if (!admin) return SIN_PERMISO
+
+  const ids = formData
+    .getAll('ids')
+    .map((valor) => String(valor).trim())
+    .filter(Boolean)
+
+  // El chequeo de "no te borres a ti mismo" va acá y no solo en la UI.
+  const seleccion = ids.filter((id) => id !== admin.id)
+  if (seleccion.length === 0) {
+    return { ok: false, error: 'No hay cuentas seleccionadas.' }
+  }
+
+  const auth = createAdminClient()
+  const resultados = await Promise.all(
+    seleccion.map((id) => auth.auth.admin.deleteUser(id))
+  )
+
+  const fallos = resultados.filter((r) => r.error).length
+  if (fallos > 0) {
+    return {
+      ok: false,
+      error: `Se eliminaron ${
+        seleccion.length - fallos
+      } de ${seleccion.length} cuentas. Vuelve a intentarlo con el resto.`,
+    }
+  }
+
+  revalidatePath('/admin/instructores')
+  return OK
+}

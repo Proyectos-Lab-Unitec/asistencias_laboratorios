@@ -12,6 +12,7 @@ import {
   FiBox,
   FiUsers,
   FiFileText,
+  FiBookOpen,
 } from 'react-icons/fi'
 import type { IconType } from 'react-icons'
 import { createClient } from '@/lib/supabase/client'
@@ -24,6 +25,7 @@ const ICONOS = {
   box: FiBox,
   users: FiUsers,
   file: FiFileText,
+  book: FiBookOpen,
 } as const
 
 export type NombreIcono = keyof typeof ICONOS

@@ -3,15 +3,10 @@
 import { useActionState } from 'react'
 import { FiCheck, FiUsers } from 'react-icons/fi'
 import { CLASE_CELDA, CLASE_FILA } from '@/components/ui/tabla-dato'
-import { ESTADO_INICIAL } from '@/lib/types'
+import { ESTADO_INICIAL, type AlumnoSeccion } from '@/lib/types'
 import { guardarNotas } from '../actions'
 
-export type AlumnoNota = {
-  id: number
-  numero_cuenta: string
-  nombre: string
-  nota_final: number | null
-}
+export type AlumnoNota = AlumnoSeccion
 
 const CLASE_BOTON =
   'inline-flex items-center gap-1.5 rounded-lg bg-[#06065c] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#0f49b6] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#06065c] disabled:cursor-not-allowed disabled:opacity-50'
@@ -84,7 +79,7 @@ export default function CapturaNotas({
                     name={`nota_${alumno.id}`}
                     defaultValue={alumno.nota_final ?? ''}
                     min={0}
-                    max={15}
+                    max={100}
                     step="0.01"
                     inputMode="decimal"
                     aria-label={`Nota final de ${alumno.nombre}`}
@@ -99,7 +94,7 @@ export default function CapturaNotas({
 
       <div className="flex flex-wrap items-center justify-end gap-3">
         <p className="text-sm text-gray-500">
-          {conNota} de {alumnos.length} con nota · escala 0 a 15
+          {conNota} de {alumnos.length} con nota · escala 0 a 100
         </p>
 
         {estado.error ? (
