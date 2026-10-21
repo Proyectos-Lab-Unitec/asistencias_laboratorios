@@ -171,9 +171,13 @@ export type SeccionDisponible = {
   laboratorio: string
   /** Nombre de la clase del laboratorio; respaldo de la columna CLASE. */
   clase: string
+  /** Id de la clase del laboratorio: es lo que filtra el selector. */
+  claseId: number | null
   grupo: string
   horario: string
   periodo: string
+  /** Id del periodo: es lo que filtra el selector. */
+  periodoId: number
   instructor: string
   /** Texto listo para el checkbox: "Lab · Sección · Periodo". */
   etiqueta: string
@@ -247,9 +251,11 @@ export async function cargarSecciones(
       id: seccion.id,
       laboratorio: laboratorio?.nombre ?? '—',
       clase: claseLaboratorio?.nombre ?? '',
+      claseId: claseDelLaboratorio(seccion),
       grupo: seccion.grupo ?? '—',
       horario: seccion.horario ?? '',
       periodo: periodo ? `${periodo.nombre} ${periodo.year}` : '—',
+      periodoId: seccion.periodo_id,
       instructor: instructor?.nombre ?? '—',
       etiqueta: '',
     }

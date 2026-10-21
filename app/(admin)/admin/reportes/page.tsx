@@ -1,35 +1,21 @@
 import { requireRol } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import {
+  FILTRO_VACIO,
   cargarReporte,
   cargarSecciones,
   modoValido,
   type FiltroReporte,
 } from '@/lib/reportes'
-import { plural } from '@/lib/utils'
 import EnvioReporte from '@/components/reportes/envio-reporte'
 import VistaReporte from '@/components/reportes/vista-reporte'
+import FiltrosReporte from './filtros'
 import { enviarReporteAdmin } from './actions'
 
 // La sesión y los datos cambian por request: se corta el prerender.
 export const instant = false
 
 export const metadata = { title: 'Reportes' }
-
-const CLASE_BOTON =
-  'inline-flex items-center gap-1.5 rounded-lg bg-[#06065c] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#0f49b6] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#06065c]'
-
-const CLASE_MODO_ACTIVO =
-  'rounded-lg bg-[#06065c] px-4 py-2.5 text-sm font-medium text-white'
-const CLASE_MODO_INACTIVO =
-  'rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100'
-
-const CLASE_LEYENDA = 'mb-1.5 block text-sm font-medium text-gray-700'
-
-const CLASE_LISTA =
-  'max-h-48 space-y-1.5 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50/60 p-3 [scrollbar-color:#c3c9d6_transparent] [scrollbar-width:thin]'
-
-const CLASE_CASILLA = 'h-4 w-4 shrink-0 cursor-pointer accent-[#06065c]'
 
 /** Fecha local del servidor en formato date de Postgres. */
 function hoyIso() {
@@ -82,8 +68,8 @@ export default async function AdminReportesPage({
     (periodo) => periodo.fecha_inicio <= hoy && hoy <= periodo.fecha_fin
   )
 
-  // `filtros=1` lo manda el formulario: distingue "primera carga" de "el
-  // usuario destildó todos los periodos", que llega sin la clave `periodo`.
+  // `filtros=1` lo pone el cliente al navegar: distingue "primera carga" de
+  // "el usuario destildó todos los periodos", que llega sin la clave `periodo`.
   const primeraCarga = params.filtros === undefined
 
   const filtro: FiltroReporte = {
@@ -98,13 +84,9 @@ export default async function AdminReportesPage({
 
   const modo = modoValido(params.modo ?? '')
 
-  // La lista de secciones se arma con clase y periodo, pero sin el filtro de
-  // sección: si no, al destildar todas desaparecerían las opciones.
-  const disponibles = await cargarSecciones({
-    seccionIds: [],
-    periodoIds: filtro.periodoIds,
-    claseIds: filtro.claseIds,
-  })
+  // Todas las secciones visibles: el cliente filtra la lista en vivo con su
+  // clase y su periodo, sin volver al servidor por cada casilla.
+  const todas = await cargarSecciones(FILTRO_VACIO)
 
   const reporte = await cargarReporte(filtro, modo)
   const vacio = !reporte || reporte.filas.length === 0
@@ -122,169 +104,36 @@ export default async function AdminReportesPage({
       <header className="space-y-1">
         <h1 className="text-2xl font-semibold text-gray-900">Reportes</h1>
         <p className="text-sm text-gray-500">
-          Elige una o varias clases y periodos: las secciones se ajustan a esa
-          combinación. Después marca las secciones que quieras incluir.
+          Marca una o varias clases y periodos: las secciones se ajustan al
+          instante. Después elige las secciones que quieras incluir.
         </p>
       </header>
 
-      <form
-        method="GET"
-        className="space-y-5 rounded-xl border border-gray-200 bg-white p-5"
-      >
-        <input type="hidden" name="filtros" value="1" />
-
-        <div className="grid gap-5 lg:grid-cols-3">
-          {/* ---------- Clases ---------- */}
-          <fieldset>
-            <legend className={CLASE_LEYENDA}>Clases</legend>
-            <div className={CLASE_LISTA}>
-              {(clases ?? []).length === 0 ? (
-                <p className="text-xs text-gray-500">
-                  No hay clases en el catálogo.
-                </p>
-              ) : (
-                (clases ?? []).map((clase) => (
-                  <label
-                    key={clase.id}
-                    className="flex cursor-pointer items-center gap-2 text-sm text-gray-800"
-                  >
-                    <input
-                      type="checkbox"
-                      name="clase"
-                      value={clase.id}
-                      defaultChecked={filtro.claseIds.includes(clase.id)}
-                      className={CLASE_CASILLA}
-                    />
-                    {clase.nombre}
-                  </label>
-                ))
-              )}
-            </div>
-            <p className="mt-1 text-xs text-gray-500">Sin marcar = todas.</p>
-          </fieldset>
-
-          {/* ---------- Periodos ---------- */}
-          <fieldset>
-            <legend className={CLASE_LEYENDA}>Periodos</legend>
-            <div className={CLASE_LISTA}>
-              {(periodos ?? []).length === 0 ? (
-                <p className="text-xs text-gray-500">No hay periodos.</p>
-              ) : (
-                (periodos ?? []).map((periodo) => (
-                  <label
-                    key={periodo.id}
-                    className="flex cursor-pointer items-center gap-2 text-sm text-gray-800"
-                  >
-                    <input
-                      type="checkbox"
-                      name="periodo"
-                      value={periodo.id}
-                      defaultChecked={filtro.periodoIds.includes(periodo.id)}
-                      className={CLASE_CASILLA}
-                    />
-                    <span>
-                      {periodo.nombre} {periodo.year}
-                      {periodo.id === periodoActual?.id && (
-                        <span className="ml-1.5 rounded bg-[#06065c]/10 px-1.5 py-0.5 text-[11px] font-medium text-[#06065c]">
-                          actual
-                        </span>
-                      )}
-                    </span>
-                  </label>
-                ))
-              )}
-            </div>
-            <p className="mt-1 text-xs text-gray-500">Sin marcar = todos.</p>
-          </fieldset>
-
-          {/* ---------- Secciones (dependen de clase y periodo) ---------- */}
-          <fieldset>
-            <legend className={CLASE_LEYENDA}>Secciones</legend>
-            <div className={CLASE_LISTA}>
-              {disponibles.length === 0 ? (
-                <p className="text-xs text-gray-500">
-                  No hay secciones para esa combinación de clase y periodo.
-                </p>
-              ) : (
-                disponibles.map((seccion) => (
-                  <label
-                    key={seccion.id}
-                    className="flex cursor-pointer items-start gap-2 text-sm text-gray-800"
-                  >
-                    <input
-                      type="checkbox"
-                      name="seccion"
-                      value={seccion.id}
-                      defaultChecked={filtro.seccionIds.includes(seccion.id)}
-                      className={`${CLASE_CASILLA} mt-0.5`}
-                    />
-                    <span>
-                      {seccion.etiqueta}
-                      {seccion.instructor !== '—' && (
-                        <span className="block text-xs text-gray-500">
-                          {seccion.instructor}
-                        </span>
-                      )}
-                    </span>
-                  </label>
-                ))
-              )}
-            </div>
-            <p className="mt-1 text-xs text-gray-500">
-              Sin marcar = todas las que cumplan el filtro.
-            </p>
-          </fieldset>
-        </div>
-
-        <div className="flex flex-wrap items-end justify-between gap-3 border-t border-gray-100 pt-4">
-          <div>
-            <p className="mb-1.5 text-sm font-medium text-gray-700">Modo</p>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="submit"
-                name="modo"
-                value="notas"
-                aria-pressed={modo === 'notas'}
-                className={
-                  modo === 'notas' ? CLASE_MODO_ACTIVO : CLASE_MODO_INACTIVO
-                }
-              >
-                A · Notas finales
-              </button>
-              <button
-                type="submit"
-                name="modo"
-                value="asistencia"
-                aria-pressed={modo === 'asistencia'}
-                className={
-                  modo === 'asistencia'
-                    ? CLASE_MODO_ACTIVO
-                    : CLASE_MODO_INACTIVO
-                }
-              >
-                B · Asistencia
-              </button>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <p className="text-xs text-gray-500">
-              {plural(filtro.claseIds.length || (clases ?? []).length, 'clase', 'clases')}
-              {' · '}
-              {plural(filtro.periodoIds.length || (periodos ?? []).length, 'periodo', 'periodos')}
-              {' · '}
-              {plural(
-                filtro.seccionIds.length || disponibles.length,
-                'sección',
-                'secciones'
-              )}
-            </p>
-            <button type="submit" name="modo" value={modo} className={CLASE_BOTON}>
-              Aplicar filtros
-            </button>
-          </div>
-        </div>
-      </form>
+      <FiltrosReporte
+        clases={(clases ?? []).map((clase) => ({
+          id: clase.id as number,
+          nombre: clase.nombre as string,
+        }))}
+        periodos={(periodos ?? []).map((periodo) => ({
+          id: periodo.id as number,
+          nombre: periodo.nombre as string,
+          year: periodo.year as number,
+          actual: periodo.id === periodoActual?.id,
+        }))}
+        secciones={todas.map((seccion) => ({
+          id: seccion.id,
+          etiqueta: seccion.etiqueta,
+          instructor: seccion.instructor,
+          claseId: seccion.claseId,
+          periodoId: seccion.periodoId,
+        }))}
+        inicial={{
+          clases: filtro.claseIds,
+          periodos: filtro.periodoIds,
+          secciones: filtro.seccionIds,
+        }}
+        modo={modo}
+      />
 
       {reporte ? (
         <VistaReporte reporte={reporte} descarga={descarga} />

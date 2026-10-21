@@ -129,7 +129,7 @@ asistencias   : id, sesion_id FK → sesiones,
 Se generan **server-side** en Next.js. Todos comparten preview, descarga y envío por correo, y salen del mismo armado de datos (`lib/reportes.ts`), así que pantalla, correo y Excel no pueden divergir:
 
 1. **Instructor** → solo sus secciones; preview → envía al correo que indique.
-2. **Admin** → una sola pantalla con tres filtros de **selección múltiple**: clases, periodos y secciones. Las secciones que se ofrecen dependen de las clases y periodos marcados; sin marcar ninguna entran todas las que cumplan el filtro. Con una sola sección el encabezado es el de esa sección; con varias describe el alcance (periodo, clase, secciones y alumnos).
+2. **Admin** → una sola pantalla con tres filtros de **selección múltiple**: clases, periodos y secciones. Las secciones que se ofrecen dependen de las clases y periodos marcados y se recalculan al instante (sin recargar la página); sin marcar ninguna entran todas las que cumplan el filtro. Con una sola sección el encabezado es el de esa sección; con varias describe el alcance (periodo, clase, secciones y alumnos).
 
 ### Modos de reporte (elegibles en los 3 tipos)
 
