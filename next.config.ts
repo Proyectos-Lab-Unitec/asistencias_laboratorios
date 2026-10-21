@@ -16,6 +16,10 @@ const nextConfig: NextConfig = {
   },
   cacheComponents: true,
   partialPrefetching: true,
+  // exceljs usa módulos de Node (fs, stream, zlib) que su paquete resuelve con
+  // require dinámico. Bundlearlo con Turbopack lo revienta al generar el .xlsx,
+  // así que se deja fuera del bundle y Next lo sirve tal cual de node_modules.
+  serverExternalPackages: ["exceljs"],
   turbopack: {
     rules: {
       "*.css": {

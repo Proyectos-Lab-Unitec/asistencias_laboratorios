@@ -1,0 +1,117 @@
+'use client'
+
+import { useActionState, useState } from 'react'
+import { FiSend } from 'react-icons/fi'
+import { ESTADO_INICIAL } from '@/lib/types'
+import { enviarReporte } from './actions'
+
+const CLASE_INPUT =
+  'w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-black outline-none transition focus:border-[#0f49b6] focus:ring-2 focus:ring-[#0f49b6] disabled:bg-gray-100'
+
+const CLASE_BOTON =
+  'inline-flex items-center gap-1.5 rounded-lg bg-[#06065c] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#0f49b6] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#06065c] disabled:cursor-not-allowed disabled:opacity-50'
+
+/**
+ * Formulario de envío del reporte.
+ *
+ * Manda solo id de sección, modo y destinatario: el cuerpo del correo se arma
+ * otra vez en el servidor, así que el cliente nunca decide qué tabla viaja.
+ */
+export default function EnvioReporte({
+  seccion,
+  modo,
+  vacio,
+  configurado,
+}: {
+  seccion: number
+  modo: 'notas' | 'asistencia'
+  vacio: boolean
+  configurado: boolean
+}) {
+  const [estado, enviar, pendiente] = useActionState(
+    enviarReporte,
+    ESTADO_INICIAL
+  )
+  const [correo, setCorreo] = useState('')
+
+  const bloqueado = vacio || pendiente
+
+  return (
+    <form action={enviar} className="space-y-3 rounded-xl border border-gray-200 bg-white p-5">
+      <div>
+        <h2 className="text-sm font-bold uppercase tracking-wide text-[#06065c]">
+          Enviar por correo
+        </h2>
+        <p className="mt-1 text-xs text-gray-500">
+          El mensaje lleva la tabla del reporte en HTML, lista para leer en el
+          correo.
+        </p>
+      </div>
+
+      <input type="hidden" name="seccion" value={seccion} />
+      <input type="hidden" name="modo" value={modo} />
+
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="min-w-[240px] flex-1">
+          <label
+            htmlFor="destinatario"
+            className="mb-1 block text-sm font-medium text-gray-700"
+          >
+            Destinatario <span className="text-red-500">*</span>
+          </label>
+          <input
+            id="destinatario"
+            type="email"
+            name="destinatario"
+            value={correo}
+            onChange={(e) => setCorreo(e.target.value)}
+            placeholder="departamento@universidad.com"
+            required
+            maxLength={254}
+            disabled={bloqueado}
+            className={CLASE_INPUT}
+          />
+        </div>
+
+        <button type="submit" disabled={bloqueado} className={CLASE_BOTON}>
+          <FiSend size={16} aria-hidden />
+          {pendiente ? 'Enviando…' : 'Enviar'}
+        </button>
+      </div>
+
+      {!configurado && (
+        <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          El envío aún no está configurado: falta{' '}
+          <code className="font-semibold">POWERAPPS_URL</code> en .env.local con
+          el enlace del flujo de Power Automate. La descarga del Excel funciona
+          igual.
+        </p>
+      )}
+
+      {vacio && (
+        <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          Esta sección no tiene alumnos inscritos, así que no hay nada que
+          enviar.
+        </p>
+      )}
+
+      {estado.ok && (
+        <p
+          role="status"
+          className="rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-700"
+        >
+          Correo enviado a {correo || 'el destinatario indicado'}.
+        </p>
+      )}
+
+      {estado.error && (
+        <p
+          role="alert"
+          className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700"
+        >
+          {estado.error}
+        </p>
+      )}
+    </form>
+  )
+}
