@@ -7,7 +7,14 @@ import {
   useState,
   startTransition,
 } from 'react'
-import { FiCheck, FiEdit2, FiPlus, FiUserPlus, FiUsers } from 'react-icons/fi'
+import {
+  FiCheck,
+  FiEdit2,
+  FiPlus,
+  FiTrash2,
+  FiUserPlus,
+  FiUsers,
+} from 'react-icons/fi'
 import { BotonesModal, Campo, ModalBase } from '@/components/ui/modal'
 import { InterruptorEstado } from '@/components/ui/interruptor-estado'
 import { CLASE_CELDA, CLASE_FILA } from '@/components/ui/tabla-dato'
@@ -23,6 +30,7 @@ import {
   agregarAlumno,
   alternarAsistencia,
   alternarSesion,
+  eliminarAlumno,
   marcarTodosPresentes,
 } from '../actions'
 
@@ -110,6 +118,7 @@ export default function GrillaAsistencia({
   )
   const [modalAlumno, setModalAlumno] = useState(false)
   const [editando, setEditando] = useState<AlumnoSeccion | null>(null)
+  const [eliminando, setEliminando] = useState<AlumnoSeccion | null>(null)
   const contenedor = useRef<HTMLDivElement>(null)
   // Día elegido en el formulario de la barra, para llevarle la vista cuando
   // la sesión se acabe de crear.
@@ -332,6 +341,15 @@ export default function GrillaAsistencia({
                         >
                           <FiEdit2 size={14} aria-hidden />
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => setEliminando(alumno)}
+                          title="Eliminar al alumno de la sección"
+                          aria-label={`Eliminar a ${alumno.nombre}`}
+                          className="shrink-0 rounded-md p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600"
+                        >
+                          <FiTrash2 size={14} aria-hidden />
+                        </button>
                       </div>
                     </td>
 
@@ -425,7 +443,76 @@ export default function GrillaAsistencia({
           />
         </ModalBase>
       )}
+
+      {eliminando && (
+        <ModalBase
+          titulo="Eliminar alumno"
+          onCerrar={() => setEliminando(null)}
+        >
+          <ConfirmarEliminarAlumno
+            key={eliminando.id}
+            alumno={eliminando}
+            seccionId={seccionId}
+            onExito={() => setEliminando(null)}
+            onCancelar={() => setEliminando(null)}
+          />
+        </ModalBase>
+      )}
     </div>
+  )
+}
+
+/** Confirmación del borrado de un alumno de la sección. */
+function ConfirmarEliminarAlumno({
+  alumno,
+  seccionId,
+  onExito,
+  onCancelar,
+}: {
+  alumno: AlumnoSeccion
+  seccionId: number
+  onExito: () => void
+  onCancelar: () => void
+}) {
+  const [estado, enviar, pendiente] = useActionState(
+    eliminarAlumno,
+    ESTADO_INICIAL
+  )
+
+  useEffect(() => {
+    if (estado.ok) onExito()
+  }, [estado, onExito])
+
+  return (
+    <form action={enviar}>
+      <input type="hidden" name="seccion_id" value={seccionId} />
+      <input type="hidden" name="id" value={alumno.id} />
+
+      <p className="text-sm text-gray-600">
+        ¿Estás seguro de que deseas eliminar a{' '}
+        <strong>{alumno.nombre}</strong> (#{alumno.numero_cuenta}) de esta
+        sección?
+      </p>
+
+      <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
+        Se borran también sus marcas de asistencia en esta sección y su nota
+        final. Esta acción no se puede deshacer.
+      </p>
+
+      {estado.error && (
+        <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
+          {estado.error}
+        </p>
+      )}
+
+      <BotonesModal
+        onCancelar={onCancelar}
+        guardando={pendiente}
+        texto="Eliminar"
+        textoGuardando="Eliminando..."
+        peligro
+      />
+    </form>
   )
 }
 

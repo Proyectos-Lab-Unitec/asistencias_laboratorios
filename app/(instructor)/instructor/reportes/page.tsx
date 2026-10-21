@@ -1,13 +1,10 @@
 import { requireRol } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
-import {
-  aObjeto,
-  cargarReporteSeccion,
-  celdasDe,
-  modoValido,
-  nombreDeArchivo,
-} from '@/lib/reportes'
-import EnvioReporte from './envio'
+import { cargarReporteSeccion, modoValido } from '@/lib/reportes'
+import { aObjeto } from '@/lib/utils'
+import EnvioReporte from '@/components/reportes/envio-reporte'
+import VistaReporte from '@/components/reportes/vista-reporte'
+import { enviarReporte } from './actions'
 
 // La sesión y los datos cambian por request: se corta el prerender.
 export const instant = false
@@ -152,100 +149,11 @@ export default async function InstructorReportesPage({
         </div>
       </div>
 
-      {/* ---------- Preview ---------- */}
-      {reporte && (
-        <section className="space-y-4 rounded-xl border border-gray-200 bg-white p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-bold text-[#06065c]">
-                {reporte.titulo}
-              </h2>
-              <dl className="mt-2 grid gap-x-8 gap-y-1 text-sm text-gray-700 sm:grid-cols-2">
-                {reporte.encabezado.map((d) => (
-                  <div key={d.etiqueta} className="flex gap-1.5">
-                    <dt className="font-semibold text-[#06065c]">
-                      {d.etiqueta}:
-                    </dt>
-                    <dd>{d.valor}</dd>
-                  </div>
-                ))}
-              </dl>
-            </div>
+      {reporte && <VistaReporte reporte={reporte} descarga={descarga} />}
 
-            {vacio ? (
-              <span
-                aria-disabled
-                className="inline-flex cursor-not-allowed items-center gap-1.5 rounded-lg bg-[#06065c] px-4 py-2.5 text-sm font-medium text-white opacity-45"
-              >
-                Descargar Excel
-              </span>
-            ) : (
-              <a href={descarga} download className={CLASE_BOTON}>
-                Descargar Excel
-                <span className="sr-only">
-                  {' '}
-                  — {nombreDeArchivo(reporte)}
-                </span>
-              </a>
-            )}
-          </div>
-
-          {vacio ? (
-            <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
-              Esta sección todavía no tiene alumnos inscritos, así que el
-              reporte sale vacío.
-            </p>
-          ) : (
-            <div className="overflow-x-auto rounded-lg border border-gray-200">
-              <table className="w-full border-collapse text-sm">
-                <thead>
-                  <tr className="bg-[#06065c] text-white">
-                    {reporte.columnas.map((columna) => (
-                      <th
-                        key={columna}
-                        scope="col"
-                        className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide"
-                      >
-                        {columna}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {reporte.filas.map((fila, i) => (
-                    <tr
-                      key={`${fila.numero_cuenta}-${i}`}
-                      className={
-                        i % 2 === 1
-                          ? 'bg-gray-50'
-                          : 'bg-white odd:[&>td]:border-gray-100'
-                      }
-                    >
-                      {celdasDe(fila, reporte.modo).map((celda, j) => (
-                        <td
-                          key={j}
-                          className="border-t border-gray-100 px-3 py-2 text-gray-900"
-                        >
-                          {celda === '' ? (
-                            <span className="text-gray-400">—</span>
-                          ) : (
-                            celda
-                          )}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-      )}
-
-      {/* ---------- Envío ---------- */}
       <EnvioReporte
-        seccion={seccionId}
-        modo={modo}
+        accion={enviarReporte}
+        campos={{ seccion: String(seccionId), modo }}
         vacio={vacio}
         configurado={configurado}
       />

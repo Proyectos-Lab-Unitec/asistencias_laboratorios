@@ -31,6 +31,7 @@ Sistema **interno** para la universidad de manejo de asistencias, inscripciones 
 - **Cierra el registro** de la sección cuando desea.
 - Ingresa las **notas finales** de los alumnos de su sección.
 - Marca la **asistencia manualmente** cada día de clase.
+- Da de alta, **edita y elimina alumnos** de su sección desde la grilla de asistencia.
 - Genera el **reporte Excel de su sección** (preview → descargar → enviar a un correo específico).
 
 ### Alumno (sin cuenta)
@@ -125,11 +126,10 @@ asistencias   : id, sesion_id FK → sesiones,
 
 ## 5. Reportes Excel
 
-Se generan **server-side** en Next.js. Los tres tipos comparten preview, descarga y envío por correo:
+Se generan **server-side** en Next.js. Todos comparten preview, descarga y envío por correo, y salen del mismo armado de datos (`lib/reportes.ts`), así que pantalla, correo y Excel no pueden divergir:
 
 1. **Instructor** → solo sus secciones; preview → envía al correo que indique.
-2. **Admin por sección** → cualquier sección.
-3. **Admin global** → todas las secciones, con toggle *"solo trimestre actual"* o *"todas"*.
+2. **Admin** → una sola pantalla con tres filtros combinables: **sección** (o todas), **periodo** (o todos) y **clase** (o todas). El caso "todas las secciones" es el reporte global y su encabezado pasa a describir el alcance (periodo, clase, secciones y alumnos) en vez de un laboratorio e instructor únicos.
 
 ### Modos de reporte (elegibles en los 3 tipos)
 
@@ -213,4 +213,4 @@ supabase/
 4. [x] CRUD de admin (clases, laboratorios, cuentas de instructores)
 5. [x] Secciones del instructor + generación de QR de registro
 6. [x] Registro público por QR, marcado de asistencia, notas finales
-7. [ ] Reportes Excel (modos A/B) + preview + envío por correo
+7. [x] Reportes Excel (modos A/B) + preview + envío por correo

@@ -502,6 +502,49 @@ export async function agregarAlumno(
 }
 
 /**
+ * Borra a un alumno de la sección.
+ *
+ * La FK de `asistencias.matricula_id` es ON DELETE CASCADE, así que se van
+ * también sus marcas de asistencia; el modal lo avisa antes de confirmar. No
+ * toca otras secciones: la matrícula es por sección.
+ */
+export async function eliminarAlumno(
+  _previo: EstadoAccion,
+  formData: FormData
+): Promise<EstadoAccion> {
+  const instructor = await requiereInstructor()
+  if (!instructor) return SIN_PERMISO
+
+  const seccionId = Number(formData.get('seccion_id'))
+  const matriculaId = Number(formData.get('id'))
+
+  if (!Number.isInteger(seccionId) || seccionId <= 0) {
+    return { ok: false, error: 'Sección no válida.' }
+  }
+  if (!Number.isInteger(matriculaId) || matriculaId <= 0) {
+    return { ok: false, error: 'Alumno no válido.' }
+  }
+
+  const supabase = await createClient()
+  if (!(await seccionPropia(supabase, seccionId, instructor.id))) {
+    return SIN_PERMISO
+  }
+
+  const { error } = await supabase
+    .from('matriculas')
+    .delete()
+    .eq('id', matriculaId)
+    .eq('seccion_id', seccionId)
+
+  if (error) {
+    return { ok: false, error: `No se pudo eliminar al alumno: ${error.message}` }
+  }
+
+  revalidatePath(ruta(seccionId))
+  return OK
+}
+
+/**
  * Corrige los datos de una matrícula ya inscrita.
  *
  * No toca `nota_final` (se captura en su propia pestaña) ni `origen`: son datos

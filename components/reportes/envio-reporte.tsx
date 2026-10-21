@@ -2,8 +2,7 @@
 
 import { useActionState, useState } from 'react'
 import { FiSend } from 'react-icons/fi'
-import { ESTADO_INICIAL } from '@/lib/types'
-import { enviarReporte } from './actions'
+import { ESTADO_INICIAL, type EstadoAccion } from '@/lib/types'
 
 const CLASE_INPUT =
   'w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-black outline-none transition focus:border-[#0f49b6] focus:ring-2 focus:ring-[#0f49b6] disabled:bg-gray-100'
@@ -12,32 +11,35 @@ const CLASE_BOTON =
   'inline-flex items-center gap-1.5 rounded-lg bg-[#06065c] px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[#0f49b6] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#06065c] disabled:cursor-not-allowed disabled:opacity-50'
 
 /**
- * Formulario de envío del reporte.
+ * Formulario de envío del reporte por Power Automate.
  *
- * Manda solo id de sección, modo y destinatario: el cuerpo del correo se arma
- * otra vez en el servidor, así que el cliente nunca decide qué tabla viaja.
+ * Recibe la acción y los campos ocultos (sección, periodo, clase, modo) para
+ * que el instructor y el admin compartan el mismo formulario: el cuerpo del
+ * correo se arma otra vez en el servidor con esos filtros, así que el cliente
+ * nunca decide qué tabla viaja.
  */
 export default function EnvioReporte({
-  seccion,
-  modo,
+  accion,
+  campos,
   vacio,
   configurado,
 }: {
-  seccion: number
-  modo: 'notas' | 'asistencia'
+  accion: (previo: EstadoAccion, formData: FormData) => Promise<EstadoAccion>
+  /** Se renderizan como <input type="hidden">. */
+  campos: Record<string, string>
   vacio: boolean
   configurado: boolean
 }) {
-  const [estado, enviar, pendiente] = useActionState(
-    enviarReporte,
-    ESTADO_INICIAL
-  )
+  const [estado, enviar, pendiente] = useActionState(accion, ESTADO_INICIAL)
   const [correo, setCorreo] = useState('')
 
   const bloqueado = vacio || pendiente
 
   return (
-    <form action={enviar} className="space-y-3 rounded-xl border border-gray-200 bg-white p-5">
+    <form
+      action={enviar}
+      className="space-y-3 rounded-xl border border-gray-200 bg-white p-5"
+    >
       <div>
         <h2 className="text-sm font-bold uppercase tracking-wide text-[#06065c]">
           Enviar por correo
@@ -48,8 +50,9 @@ export default function EnvioReporte({
         </p>
       </div>
 
-      <input type="hidden" name="seccion" value={seccion} />
-      <input type="hidden" name="modo" value={modo} />
+      {Object.entries(campos).map(([nombre, valor]) => (
+        <input key={nombre} type="hidden" name={nombre} value={valor} />
+      ))}
 
       <div className="flex flex-wrap items-end gap-3">
         <div className="min-w-[240px] flex-1">
@@ -90,7 +93,7 @@ export default function EnvioReporte({
 
       {vacio && (
         <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          Esta sección no tiene alumnos inscritos, así que no hay nada que
+          El reporte no tiene alumnos con estos filtros, así que no hay nada que
           enviar.
         </p>
       )}
