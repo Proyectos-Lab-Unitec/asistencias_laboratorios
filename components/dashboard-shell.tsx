@@ -232,7 +232,7 @@ export function DashboardShell({
       </AnimatePresence>
 
       {/* Barra superior móvil */}
-      <div className="fixed inset-x-0 top-0 z-30 flex items-center gap-3 bg-[#0f49b6] px-3 py-3 text-white md:hidden">
+      <div className="fixed inset-x-0 top-0 z-30 flex items-center gap-3 bg-[#0f49b6] px-4 py-3 text-white md:hidden">
         <button
           type="button"
           onClick={() => setMenuMovilAbierto(true)}
@@ -244,8 +244,9 @@ export function DashboardShell({
         <span className="text-sm font-semibold">{titulo}</span>
       </div>
 
-      {/* Contenido */}
-      <main className="flex-1 overflow-x-hidden px-4 pb-8 pt-16 md:pt-0">
+      {/* Contenido: en móvil deja aire bajo la barra fija (h≈58px) y en
+          escritorio mantiene un margen parejo en los cuatro lados. */}
+      <main className="flex-1 overflow-x-hidden px-4 pb-10 pt-20 md:px-8 md:py-8">
         <div className="mx-auto max-w-7xl">{children}</div>
       </main>
 

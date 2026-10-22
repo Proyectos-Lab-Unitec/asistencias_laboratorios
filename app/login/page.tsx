@@ -115,7 +115,7 @@ export default function LoginPage() {
 
   return (
     <div
-      className="flex min-h-screen flex-col items-center justify-center bg-[#07065d] bg-cover bg-center px-4"
+      className="flex min-h-screen flex-col items-center justify-center bg-[#07065d] bg-cover bg-center px-4 py-10"
       style={{ backgroundImage: 'url(/fondo2.webp)' }}
     >
       <h1 className="mb-8 text-center text-6xl font-extrabold leading-tight text-white shadow-lg">
