@@ -123,7 +123,8 @@ export type Asistencia = {
   hora: string
 }
 
-/** Lo que muestra el admin de cada sección al abrir el detalle de un instructor */export type SeccionResumen = {
+/** Lo que muestra el admin de cada sección al abrir el detalle de un instructor */
+export type SeccionResumen = {
   id: number
   grupo: string
   horario: string | null
@@ -131,6 +132,24 @@ export type Asistencia = {
   periodo: string
   /** Solo lo llena el modal de secciones de un laboratorio. */
   instructor?: string
+}
+
+/** Alumno tal como lo muestra el detalle de una sección del admin. */
+export type AlumnoDetalle = {
+  id: number
+  numeroCuenta: string
+  nombre: string
+  docente: string | null
+  clase: string | null
+  seccionClase: string | null
+  notaFinal: number | null
+  /** Días a los que asistió, sobre el total de sesiones de la sección. */
+  presentes: number
+}
+
+export type DetalleSeccion = {
+  sesiones: number
+  alumnos: AlumnoDetalle[]
 }
 
 /** Opciones de los <select> del formulario de sección */

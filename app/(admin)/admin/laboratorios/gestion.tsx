@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useState, useActionState } from 'react'
 import Link from 'next/link'
 import {
+  FiArrowLeft,
   FiBox,
+  FiChevronRight,
   FiEdit2,
   FiList,
   FiPlus,
@@ -35,6 +37,7 @@ import {
 import {
   ESTADO_INICIAL,
   type ClaseOpcion,
+  type DetalleSeccion,
   type EstadoAccion,
   type Laboratorio,
   type SeccionResumen,
@@ -172,30 +175,186 @@ function FormularioLaboratorio({
   )
 }
 
-/** Lista de secciones de un laboratorio, con el mismo formato que Instructores. */
-function DetalleSecciones({ secciones }: { secciones: SeccionResumen[] }) {
+/** Lista de secciones de un laboratorio; cada una abre su detalle. */
+function DetalleSecciones({
+  secciones,
+  detallePorSeccion,
+}: {
+  secciones: SeccionResumen[]
+  detallePorSeccion: Record<number, DetalleSeccion>
+}) {
+  const [abierta, setAbierta] = useState<SeccionResumen | null>(null)
+
+  if (abierta) {
+    return (
+      <DetalleDeSeccion
+        seccion={abierta}
+        detalle={detallePorSeccion[abierta.id]}
+        onVolver={() => setAbierta(null)}
+      />
+    )
+  }
+
+  if (secciones.length === 0) {
+    return (
+      <p className="text-sm text-gray-500">
+        Este laboratorio todavía no tiene secciones. Las crea el instructor
+        desde su panel.
+      </p>
+    )
+  }
+
   return (
     <div className="space-y-3">
-      {secciones.length === 0 ? (
-        <p className="text-sm text-gray-500">
-          Este laboratorio todavía no tiene secciones. Las crea el instructor
-          desde su panel.
+      <p className="text-xs text-gray-500">
+        Haz clic en una sección para ver sus alumnos, asistencias y notas.
+      </p>
+
+      <ul className="divide-y divide-gray-100 rounded-lg border border-gray-200">
+        {secciones.map((seccion) => {
+          const detalle = detallePorSeccion[seccion.id]
+          const alumnos = detalle?.alumnos.length ?? 0
+
+          return (
+            <li key={seccion.id}>
+              <button
+                type="button"
+                onClick={() => setAbierta(seccion)}
+                className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left transition-colors hover:bg-[#06065c]/[0.06] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#06065c]"
+              >
+                <span className="min-w-0">
+                  <span className="block text-sm font-medium text-gray-900">
+                    Sección {seccion.grupo}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-gray-500">
+                    {[seccion.instructor, seccion.periodo, seccion.horario]
+                      .filter(Boolean)
+                      .join(' · ') || 'Sin datos de horario'}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-gray-400">
+                    {plural(alumnos, 'alumno', 'alumnos')} ·{' '}
+                    {plural(detalle?.sesiones ?? 0, 'sesión', 'sesiones')}
+                  </span>
+                </span>
+
+                <FiChevronRight
+                  size={16}
+                  aria-hidden
+                  className="shrink-0 text-gray-400"
+                />
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+    </div>
+  )
+}
+
+/** Detalle de una sección: sus alumnos, con asistencia y nota. */
+function DetalleDeSeccion({
+  seccion,
+  detalle,
+  onVolver,
+}: {
+  seccion: SeccionResumen
+  detalle: DetalleSeccion | undefined
+  onVolver: () => void
+}) {
+  const alumnos = detalle?.alumnos ?? []
+  const sesiones = detalle?.sesiones ?? 0
+
+  return (
+    <div className="space-y-4">
+      <button
+        type="button"
+        onClick={onVolver}
+        className="inline-flex items-center gap-1.5 text-sm font-medium text-[#06065c] hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#06065c]"
+      >
+        <FiArrowLeft size={15} aria-hidden />
+        Volver a las secciones
+      </button>
+
+      <div>
+        <p className="text-base font-bold text-gray-900">
+          Sección {seccion.grupo}
+        </p>
+        <p className="mt-0.5 text-xs text-gray-500">
+          {[
+            seccion.laboratorio,
+            seccion.instructor,
+            seccion.periodo,
+            seccion.horario,
+          ]
+            .filter(Boolean)
+            .join(' · ')}
+        </p>
+      </div>
+
+      <p className="text-sm text-gray-600">
+        {plural(alumnos.length, 'alumno', 'alumnos')} ·{' '}
+        {plural(sesiones, 'sesión', 'sesiones')}
+      </p>
+
+      {alumnos.length === 0 ? (
+        <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+          Esta sección todavía no tiene alumnos inscritos.
         </p>
       ) : (
-        <ul className="divide-y divide-gray-100 rounded-lg border border-gray-200">
-          {secciones.map((s) => (
-            <li key={s.id} className="px-3 py-2.5">
-              <p className="text-sm font-medium text-gray-900">
-                Sección {s.grupo}
-              </p>
-              <p className="mt-0.5 text-xs text-gray-500">
-                {[s.instructor, s.periodo, s.horario]
-                  .filter(Boolean)
-                  .join(' · ') || 'Sin datos de horario'}
-              </p>
-            </li>
-          ))}
-        </ul>
+        <div className="overflow-x-auto rounded-lg border border-gray-200">
+          <table className="w-full border-collapse text-sm">
+            <thead>
+              <tr className="bg-[#06065c] text-white">
+                {[
+                  { texto: 'Alumno', clase: 'text-left' },
+                  { texto: 'Docente', clase: 'text-left' },
+                  { texto: 'Clase', clase: 'text-left' },
+                  { texto: 'Sec. clase', clase: 'text-left' },
+                  { texto: 'Asistencia', clase: 'text-right' },
+                  { texto: 'Nota', clase: 'text-right' },
+                ].map((columna) => (
+                  <th
+                    key={columna.texto}
+                    scope="col"
+                    className={`px-3 py-2 text-xs font-semibold uppercase tracking-wide ${columna.clase}`}
+                  >
+                    {columna.texto}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {alumnos.map((alumno, indice) => (
+                <tr
+                  key={alumno.id}
+                  className={indice % 2 === 1 ? 'bg-gray-50' : 'bg-white'}
+                >
+                  <td className="border-t border-gray-100 px-3 py-2">
+                    <p className="font-medium text-gray-900">{alumno.nombre}</p>
+                    <p className="text-xs text-gray-500">
+                      #{alumno.numeroCuenta}
+                    </p>
+                  </td>
+                  <td className="border-t border-gray-100 px-3 py-2 text-gray-700">
+                    {alumno.docente ?? '—'}
+                  </td>
+                  <td className="border-t border-gray-100 px-3 py-2 text-gray-700">
+                    {alumno.clase ?? '—'}
+                  </td>
+                  <td className="border-t border-gray-100 px-3 py-2 text-gray-700">
+                    {alumno.seccionClase ?? '—'}
+                  </td>
+                  <td className="border-t border-gray-100 px-3 py-2 text-right tabular-nums text-gray-700">
+                    {sesiones === 0 ? '—' : `${alumno.presentes}/${sesiones}`}
+                  </td>
+                  <td className="border-t border-gray-100 px-3 py-2 text-right font-medium tabular-nums text-gray-900">
+                    {alumno.notaFinal ?? '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   )
@@ -320,10 +479,12 @@ function ConfirmarEliminacionMultiple({
 export default function GestionLaboratorios({
   laboratorios,
   seccionesPorLaboratorio,
+  detallePorSeccion,
   clases,
 }: {
   laboratorios: Laboratorio[]
   seccionesPorLaboratorio: Record<number, SeccionResumen[]>
+  detallePorSeccion: Record<number, DetalleSeccion>
   clases: ClaseOpcion[]
 }) {
   const [modalNuevo, setModalNuevo] = useState(false)
@@ -573,10 +734,12 @@ export default function GestionLaboratorios({
       {verSecciones && (
         <ModalBase
           titulo={`Secciones de ${verSecciones.nombre}`}
+          ancho="max-w-3xl"
           onCerrar={cerrarVerSecciones}
         >
           <DetalleSecciones
             secciones={seccionesPorLaboratorio[verSecciones.id] ?? []}
+            detallePorSeccion={detallePorSeccion}
           />
           <div className="mt-6 flex justify-end border-t pt-4">
             <button
