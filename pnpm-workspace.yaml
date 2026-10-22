@@ -1,2 +1,5 @@
 allowBuilds:
   supabase: true
+  # Lo usa el tooling de eslint en desarrollo; sin aprobarlo, pnpm 11 falla
+  # la instalación en CI con ERR_PNPM_IGNORED_BUILDS.
+  unrs-resolver: true
