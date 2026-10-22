@@ -208,3 +208,34 @@ export async function eliminarLaboratorios(
   revalidatePath('/admin/laboratorios')
   return OK
 }
+
+/**
+ * Borra una sección desde el modal del laboratorio.
+ *
+ * La cascada de `secciones` arrastra sus matrículas, sesiones y asistencias,
+ * por eso el modal avisa antes de confirmar.
+ */
+export async function eliminarSeccion(
+  _previo: EstadoAccion,
+  formData: FormData
+): Promise<EstadoAccion> {
+  const admin = await obtenerAdmin()
+  if (!admin) return { ok: false, error: 'No tienes permiso para hacer esto.' }
+
+  const id = Number.parseInt(String(formData.get('id') ?? ''), 10)
+  if (!Number.isInteger(id) || id <= 0) {
+    return { ok: false, error: 'Sección no válida.' }
+  }
+
+  const { error } = await admin.from('secciones').delete().eq('id', id)
+
+  if (error) {
+    return {
+      ok: false,
+      error: `No se pudo eliminar la sección: ${error.message}`,
+    }
+  }
+
+  revalidatePath('/admin/laboratorios')
+  return OK
+}

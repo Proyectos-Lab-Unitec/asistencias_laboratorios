@@ -18,6 +18,7 @@ import {
   crearLaboratorio,
   eliminarLaboratorio,
   eliminarLaboratorios,
+  eliminarSeccion,
 } from './actions'
 import { BotonesModal, Campo, ModalBase } from '@/components/ui/modal'
 import { InterruptorEstado } from '@/components/ui/interruptor-estado'
@@ -184,6 +185,19 @@ function DetalleSecciones({
   detallePorSeccion: Record<number, DetalleSeccion>
 }) {
   const [abierta, setAbierta] = useState<SeccionResumen | null>(null)
+  const [eliminando, setEliminando] = useState<SeccionResumen | null>(null)
+
+  if (eliminando) {
+    return (
+      <ConfirmarEliminarSeccion
+        seccion={eliminando}
+        alumnos={detallePorSeccion[eliminando.id]?.alumnos.length ?? 0}
+        sesiones={detallePorSeccion[eliminando.id]?.sesiones ?? 0}
+        onExito={() => setEliminando(null)}
+        onCancelar={() => setEliminando(null)}
+      />
+    )
+  }
 
   if (abierta) {
     return (
@@ -216,11 +230,11 @@ function DetalleSecciones({
           const alumnos = detalle?.alumnos.length ?? 0
 
           return (
-            <li key={seccion.id}>
+            <li key={seccion.id} className="flex items-center">
               <button
                 type="button"
                 onClick={() => setAbierta(seccion)}
-                className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left transition-colors hover:bg-[#06065c]/[0.06] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#06065c]"
+                className="flex min-w-0 flex-1 items-center justify-between gap-3 px-3 py-2.5 text-left transition-colors hover:bg-[#06065c]/[0.06] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#06065c]"
               >
                 <span className="min-w-0">
                   <span className="block text-sm font-medium text-gray-900">
@@ -242,6 +256,16 @@ function DetalleSecciones({
                   aria-hidden
                   className="shrink-0 text-gray-400"
                 />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setEliminando(seccion)}
+                title="Eliminar la sección"
+                aria-label={`Eliminar la sección ${seccion.grupo}`}
+                className="mr-1 shrink-0 rounded-md p-2 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600"
+              >
+                <FiTrash2 size={15} aria-hidden />
               </button>
             </li>
           )
@@ -357,6 +381,71 @@ function DetalleDeSeccion({
         </div>
       )}
     </div>
+  )
+}
+
+/** Confirmación del borrado de una sección, dentro del mismo modal. */
+function ConfirmarEliminarSeccion({
+  seccion,
+  alumnos,
+  sesiones,
+  onExito,
+  onCancelar,
+}: {
+  seccion: SeccionResumen
+  alumnos: number
+  sesiones: number
+  onExito: () => void
+  onCancelar: () => void
+}) {
+  const [estado, enviar, pendiente] = useActionState(
+    eliminarSeccion,
+    ESTADO_INICIAL
+  )
+
+  useEffect(() => {
+    if (estado.ok) onExito()
+  }, [estado.ok, onExito])
+
+  return (
+    <form action={enviar} className="space-y-4">
+      <input type="hidden" name="id" value={seccion.id} />
+
+      <p className="text-sm text-gray-600">
+        ¿Estás seguro de que deseas eliminar la sección{' '}
+        <strong>{seccion.grupo}</strong> de{' '}
+        <strong>{seccion.laboratorio}</strong>?
+      </p>
+
+      <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
+        {alumnos > 0
+          ? `Se eliminarán también ${plural(
+              alumnos,
+              'alumno',
+              'alumnos'
+            )} con sus ${plural(
+              sesiones,
+              'sesión',
+              'sesiones'
+            )} y todas las asistencias registradas.`
+          : 'La sección no tiene alumnos inscritos, así que solo se borra el registro.'}{' '}
+        Esta acción no se puede deshacer.
+      </p>
+
+      {estado.error && (
+        <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
+          {estado.error}
+        </p>
+      )}
+
+      <BotonesModal
+        onCancelar={onCancelar}
+        guardando={pendiente}
+        texto="Eliminar"
+        textoGuardando="Eliminando..."
+        peligro
+      />
+    </form>
   )
 }
 
