@@ -214,3 +214,80 @@ supabase/
 5. [x] Secciones del instructor + generación de QR de registro
 6. [x] Registro público por QR, marcado de asistencia, notas finales
 7. [x] Reportes Excel (modos A/B) + preview + envío por correo
+
+---
+
+## 9. Puesta en marcha en producción
+
+`pnpm build` ya compila las 15 rutas sin errores de TypeScript ni de prerender.
+Lo que falta para publicar es del lado de Supabase y del hosting.
+
+### 1. Variables de entorno
+
+Son cuatro, y las `NEXT_PUBLIC_*` se **incrustan en el build**: tienen que estar
+puestas antes de compilar.
+
+```
+NEXT_PUBLIC_SUPABASE_URL=https://<proyecto>.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+SUPABASE_SERVICE_ROLE_KEY=...     # solo servidor, nunca llega al navegador
+POWERAPPS_URL=https://...         # trigger del flujo de correo (opcional)
+```
+
+Ojo con la precedencia: **`.env.local` gana sobre `.env`** en todas las
+compilaciones. Si `.env.local` sigue apuntando a `http://127.0.0.1:54321`, el
+cliente compilado queda hablando con el Supabase local aunque `.env` tenga la
+URL de producción. Antes de un build de producción hay que quitar (o renombrar)
+`.env.local`, o compilar en un entorno que no lo tenga.
+
+Sin `POWERAPPS_URL` la app funciona igual: la pantalla de reportes avisa que el
+envío no está configurado y la descarga sigue disponible.
+
+### 2. Esquema
+
+Las migraciones son la fuente de verdad y **no están aplicadas en el proyecto
+remoto** todavía:
+
+```bash
+pnpm exec supabase link --project-ref <ref>
+pnpm exec supabase db push
+```
+
+`supabase/seed.sql` **no** corre con `db push`: contiene los periodos de ejemplo
+y las cuentas demo (`admin@universidad.com` / `admin123` e
+`instructor@universidad.com` / `instr123`). Esas cuentas no deben existir en
+producción.
+
+### 3. Periodos
+
+`periodos` no viene en las migraciones (solo en el seed), y sin periodos el
+instructor no puede crear secciones. Hay que insertar al menos el año en curso:
+
+```sql
+insert into public.periodos (year, nombre, fecha_inicio, fecha_fin) values
+  (2026, 'Q1', '2026-01-01', '2026-03-31'),
+  (2026, 'Q2', '2026-04-01', '2026-06-30'),
+  (2026, 'Q3', '2026-07-01', '2026-09-30'),
+  (2026, 'Q4', '2026-10-01', '2026-12-31')
+on conflict (year, nombre) do nothing;
+```
+
+### 4. Primera cuenta de administrador
+
+No hay pantalla para crear admins (el admin solo crea instructores). Se crea la
+cuenta desde el panel de Supabase, en *Authentication → Add user*, y después se
+asciende el perfil:
+
+```sql
+update public.perfiles set rol = 'admin' where email = 'tu-correo@unitec.edu';
+```
+
+Sin este paso nadie puede entrar al panel.
+
+### 5. Comprobación final
+
+- `pnpm build` sin errores.
+- Las cuatro variables puestas en el hosting (no solo en `.env`).
+- `select count(*) from public.periodos;` mayor que cero y un `perfiles.rol = 'admin'`.
+- Entrar por `/login` como admin y generar un reporte de prueba.
+- Abrir `/registro/<token>` desde un teléfono real y completar una inscripción.
