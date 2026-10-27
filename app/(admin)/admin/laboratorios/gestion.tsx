@@ -176,15 +176,26 @@ function FormularioLaboratorio({
   )
 }
 
+/** Enlace profundo desde el dashboard: laboratorio y sección a abrir. */
+type FocoLaboratorio = {
+  laboratorioId: number
+  seccionId: number | null
+}
+
 /** Lista de secciones de un laboratorio; cada una abre su detalle. */
 function DetalleSecciones({
   secciones,
   detallePorSeccion,
+  seccionInicialId,
 }: {
   secciones: SeccionResumen[]
   detallePorSeccion: Record<number, DetalleSeccion>
+  /** Si viene, el detalle de esa sección se muestra de entrada. */
+  seccionInicialId?: number | null
 }) {
-  const [abierta, setAbierta] = useState<SeccionResumen | null>(null)
+  const [abierta, setAbierta] = useState<SeccionResumen | null>(
+    () => secciones.find((seccion) => seccion.id === seccionInicialId) ?? null
+  )
   const [eliminando, setEliminando] = useState<SeccionResumen | null>(null)
 
   if (eliminando) {
@@ -570,16 +581,25 @@ export default function GestionLaboratorios({
   seccionesPorLaboratorio,
   detallePorSeccion,
   clases,
+  foco,
 }: {
   laboratorios: Laboratorio[]
   seccionesPorLaboratorio: Record<number, SeccionResumen[]>
   detallePorSeccion: Record<number, DetalleSeccion>
   clases: ClaseOpcion[]
+  foco?: FocoLaboratorio | null
 }) {
   const [modalNuevo, setModalNuevo] = useState(false)
   const [editando, setEditando] = useState<Laboratorio | null>(null)
   const [eliminando, setEliminando] = useState<Laboratorio | null>(null)
-  const [verSecciones, setVerSecciones] = useState<Laboratorio | null>(null)
+  // El foco se consume una sola vez: al cerrar el modal no vuelve a abrirse.
+  const [focoInicial, setFocoInicial] = useState<FocoLaboratorio | null>(
+    foco ?? null
+  )
+  const [verSecciones, setVerSecciones] = useState<Laboratorio | null>(() => {
+    if (!foco) return null
+    return laboratorios.find((lab) => lab.id === foco.laboratorioId) ?? null
+  })
   const [eliminandoVarios, setEliminandoVarios] = useState(false)
   const [seleccionados, setSeleccionados] = useState<number[]>([])
   const [busqueda, setBusqueda] = useState('')
@@ -588,7 +608,14 @@ export default function GestionLaboratorios({
   const cerrarNuevo = () => setModalNuevo(false)
   const cerrarEdicion = () => setEditando(null)
   const cerrarEliminacion = () => setEliminando(null)
-  const cerrarVerSecciones = () => setVerSecciones(null)
+  const cerrarVerSecciones = () => {
+    setVerSecciones(null)
+    if (focoInicial) {
+      setFocoInicial(null)
+      // URL limpia: recargar no vuelve a abrir el modal.
+      window.history.replaceState(null, '', '/admin/laboratorios')
+    }
+  }
   const cerrarEliminacionMultiple = () => setEliminandoVarios(false)
 
   // Filtrado en el cliente: los datos ya vienen cargados, no hace falta
@@ -829,6 +856,7 @@ export default function GestionLaboratorios({
           <DetalleSecciones
             secciones={seccionesPorLaboratorio[verSecciones.id] ?? []}
             detallePorSeccion={detallePorSeccion}
+            seccionInicialId={focoInicial?.seccionId ?? null}
           />
           <div className="mt-6 flex justify-end border-t pt-4">
             <button

@@ -14,8 +14,27 @@ export const instant = false
 
 export const metadata = { title: 'Laboratorios' }
 
-export default async function LaboratoriosPage() {
+export default async function LaboratoriosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ lab?: string; seccion?: string }>
+}) {
   await requireRol('admin')
+
+  const params = await searchParams
+  const labId = Number.parseInt(params.lab ?? '', 10)
+  const seccionId = Number.parseInt(params.seccion ?? '', 10)
+
+  // Enlace profundo desde "Requiere atención": abre el laboratorio y, si
+  // viene, la sección exacta dentro de su modal.
+  const foco =
+    Number.isInteger(labId) && labId > 0
+      ? {
+          laboratorioId: labId,
+          seccionId:
+            Number.isInteger(seccionId) && seccionId > 0 ? seccionId : null,
+        }
+      : null
 
   const supabase = await createClient()
 
@@ -153,6 +172,7 @@ export default async function LaboratoriosPage() {
         seccionesPorLaboratorio={seccionesPorLaboratorio}
         detallePorSeccion={detallePorSeccion}
         clases={opcionesClase}
+        foco={foco}
       />
     </div>
   )

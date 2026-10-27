@@ -1,13 +1,9 @@
 import Link from 'next/link'
-import {
-  FiAlertCircle,
-  FiCheckCircle,
-  FiChevronRight,
-  FiFileText,
-} from 'react-icons/fi'
+import { FiAlertCircle, FiCheckCircle, FiFileText } from 'react-icons/fi'
 import { requireRol } from '@/lib/auth'
 import { createClient } from '@/lib/supabase/server'
 import { aObjeto, plural } from '@/lib/utils'
+import Pendientes, { type PendienteDashboard } from './pendientes'
 
 // La sesión y los datos cambian por request: se corta el prerender.
 export const instant = false
@@ -47,6 +43,7 @@ function fechaCorta(iso: string) {
 
 type SeccionDashboard = {
   id: number
+  laboratorioId: number
   laboratorio: string
   clase: string
   grupo: string
@@ -58,11 +55,21 @@ type SeccionDashboard = {
   registroAbierto: boolean
 }
 
-type Pendiente = {
-  clave: string
-  titulo: string
-  detalle: string
-  href: string
+/**
+ * Abre la sección exacta dentro del modal de su laboratorio: así el pendiente
+ * no obliga a buscar el laboratorio a mano.
+ */
+function enlaceSeccion(fila: SeccionDashboard) {
+  return `/admin/laboratorios?lab=${fila.laboratorioId}&seccion=${fila.id}`
+}
+
+function aElemento(fila: SeccionDashboard, extra: string) {
+  return {
+    id: String(fila.id),
+    titulo: `${fila.laboratorio} · Sección ${fila.grupo}`,
+    subtitulo: [fila.instructor, fila.clase, extra].filter(Boolean).join(' · '),
+    href: enlaceSeccion(fila),
+  }
 }
 
 export default async function AdminPage() {
@@ -88,7 +95,7 @@ export default async function AdminPage() {
       supabase
         .from('secciones')
         .select(
-          'id, grupo, instructor_id, registro_abierto, laboratorios(nombre, clases(nombre)), perfiles(nombre)'
+          'id, grupo, laboratorio_id, instructor_id, registro_abierto, laboratorios(nombre, clases(nombre)), perfiles(nombre)'
         )
         .eq('periodo_id', periodoActual?.id ?? -1)
         .order('id', { ascending: true }),
@@ -179,6 +186,7 @@ export default async function AdminPage() {
 
     return {
       id: seccion.id,
+      laboratorioId: seccion.laboratorio_id,
       laboratorio: laboratorio?.nombre ?? '—',
       clase: clase?.nombre ?? '',
       grupo: seccion.grupo ?? '—',
@@ -205,8 +213,10 @@ export default async function AdminPage() {
     (suma, fila) => suma + (fila.alumnos - fila.conNota),
     0
   )
-  const seccionesSinSesiones = filas.filter((fila) => fila.sesiones === 0).length
-  const seccionesVacias = filas.filter((fila) => fila.alumnos === 0).length
+  const sinSesiones = filas.filter((fila) => fila.sesiones === 0)
+  const sinAlumnos = filas.filter((fila) => fila.alumnos === 0)
+  const seccionesSinSesiones = sinSesiones.length
+  const seccionesVacias = sinAlumnos.length
   const registrosAbiertos = filas.filter((fila) => fila.registroAbierto).length
 
   const instructoresActivos = (instructores ?? []).filter(
@@ -217,9 +227,13 @@ export default async function AdminPage() {
       !(secciones ?? []).some(
         (seccion) => seccion.instructor_id === instructor.id
       )
-  ).length
+  )
 
-  const pendientes: Pendiente[] = []
+  const etiquetaPeriodo = periodoActual
+    ? `${periodoActual.nombre} ${periodoActual.year}`
+    : 'el trimestre'
+
+  const pendientes: PendienteDashboard[] = []
 
   if (alumnosSinNota > 0) {
     pendientes.push({
@@ -244,6 +258,12 @@ export default async function AdminPage() {
       )} sin ninguna sesión`,
       detalle: 'sin asistencia registrada en el trimestre',
       href: '/admin/laboratorios',
+      elementos: sinSesiones.map((fila) =>
+        aElemento(
+          fila,
+          `0 sesiones · ${plural(fila.alumnos, 'alumno', 'alumnos')}`
+        )
+      ),
     })
   }
 
@@ -253,19 +273,30 @@ export default async function AdminPage() {
       titulo: `${plural(seccionesVacias, 'sección', 'secciones')} sin alumnos`,
       detalle: 'nadie se ha inscrito todavía',
       href: '/admin/laboratorios',
+      elementos: sinAlumnos.map((fila) =>
+        aElemento(
+          fila,
+          `0 alumnos · ${plural(fila.sesiones, 'sesión', 'sesiones')}`
+        )
+      ),
     })
   }
 
-  if (instructoresSinSeccion > 0) {
+  if (instructoresSinSeccion.length > 0) {
     pendientes.push({
       clave: 'instructores',
       titulo: `${plural(
-        instructoresSinSeccion,
+        instructoresSinSeccion.length,
         'instructor activo',
         'instructores activos'
       )} sin secciones`,
       detalle: 'sin ninguna sección en este trimestre',
       href: '/admin/instructores',
+      elementos: instructoresSinSeccion.map((instructor) => ({
+        id: instructor.id,
+        titulo: instructor.nombre || 'Instructor sin nombre',
+        subtitulo: `Sin secciones en ${etiquetaPeriodo}`,
+      })),
     })
   }
 
@@ -432,30 +463,7 @@ export default async function AdminPage() {
                 </div>
               </div>
             ) : (
-              <ul className="divide-y divide-gray-100">
-                {pendientes.map((pendiente) => (
-                  <li key={pendiente.clave}>
-                    <Link
-                      href={pendiente.href}
-                      className="flex items-center justify-between gap-4 px-5 py-3.5 transition-colors hover:bg-[#06065c]/[0.04] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#06065c]"
-                    >
-                      <span className="min-w-0">
-                        <span className="block text-sm font-medium text-gray-900">
-                          {pendiente.titulo}
-                        </span>
-                        <span className="mt-0.5 block text-xs text-gray-500">
-                          {pendiente.detalle}
-                        </span>
-                      </span>
-                      <FiChevronRight
-                        size={16}
-                        aria-hidden
-                        className="shrink-0 text-gray-400"
-                      />
-                    </Link>
-                  </li>
-                ))}
-              </ul>
+              <Pendientes pendientes={pendientes} />
             )}
           </section>
 
